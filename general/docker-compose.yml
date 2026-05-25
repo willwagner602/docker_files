@@ -76,6 +76,8 @@ services:
     volumes:
       - /home/wbw/mongo/db:/data/db
       - /home/wbw/mongo/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+    networks:
+      - unifi-net
     restart: unless-stopped
 
   unifi:
@@ -102,9 +104,11 @@ services:
       - 8080:8080
       - 1900:1900/udp #optional
       - 8843:8843 #optional
-      - 8880:8880 #optionalfile:///D:/Downloads/phone.conf
+      - 8880:8880 #optional
       - 6789:6789 #optional
       - 5514:5514/udp #optional
+    networks:
+      - unifi-net
     restart: unless-stopped
 
   wg-easy:
@@ -152,6 +156,7 @@ networks:
   zwave:
   npm:
     driver: bridge
+  unifi-net:
 
 volumes:
   zwave-config:

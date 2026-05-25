@@ -18,6 +18,7 @@ services:
       - PGID=1001
       - VERSION=docker
       - PLEX_CLAIM=claim-nxB1xXcXiSxxmT76p_m_
+      - TZ=America/Los_Angeles
     volumes:
       - /media/plex/plex:/config
       - /media/plex/tv:/tv
@@ -198,3 +199,17 @@ services:
       - "8555:8555/udp" # WebRTC over udp
     environment:
       FRIGATE_RTSP_PASSWORD: "BdT5r9^V7QBFkTev2Fs2"
+
+  postgres:
+    image: postgres:16
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=plex
+      - POSTGRES_PASSWORD=changeme
+      - POSTGRES_DB=ombi
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - /media/plex/database:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5432:5432"
