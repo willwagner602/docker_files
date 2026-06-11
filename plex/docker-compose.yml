@@ -93,7 +93,7 @@ services:
       - TZ=Europe/London
     ports:
       - "${PORT:-8191}:8191"
-    restart: unless-stopped 
+    restart: unless-stopped
 
   sabnzbd:
     container_name: sabnzbd
@@ -118,8 +118,8 @@ services:
       - VPN_FIREWALL_TYPE=auto #
       - VPN_HEALTHCHECK_ENABLED=false #
       - VPN_NAMESERVERS= #
-      - VPN_PIA_USER=p9036752 #
-      - VPN_PIA_PASS=!n39WrJp5#qSg$2sp2fU #
+      - VPN_PIA_USER=${PIA_USER} #
+      - VPN_PIA_PASS=${PIA_PASS} #
       - VPN_PIA_PREFERRED_REGION #
       - VPN_PIA_DIP_TOKEN=no #
       - VPN_PIA_PORT_FORWARD_PERSIST=false #
@@ -159,8 +159,8 @@ services:
       - VPN_FIREWALL_TYPE=auto #
       - VPN_HEALTHCHECK_ENABLED=false #
       - VPN_NAMESERVERS= #
-      - VPN_PIA_USER=p9036752 #
-      - VPN_PIA_PASS=!n39WrJp5#qSg$2sp2fU #
+      - VPN_PIA_USER=${PIA_USER} #
+      - VPN_PIA_PASS=${PIA_PASS} #
       - VPN_PIA_PREFERRED_REGION #
       - VPN_PIA_DIP_TOKEN=no #
       - VPN_PIA_PORT_FORWARD_PERSIST=false #
@@ -198,7 +198,7 @@ services:
       - "8555:8555/tcp" # WebRTC over tcp
       - "8555:8555/udp" # WebRTC over udp
     environment:
-      FRIGATE_RTSP_PASSWORD: "BdT5r9^V7QBFkTev2Fs2"
+      FRIGATE_RTSP_PASSWORD: ${FRIGATE_RTSP_PASSWORD}
 
   postgres:
     image: postgres:16
@@ -206,7 +206,7 @@ services:
     restart: unless-stopped
     environment:
       - POSTGRES_USER=plex
-      - POSTGRES_PASSWORD=changeme
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=ombi
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
