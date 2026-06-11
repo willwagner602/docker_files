@@ -152,6 +152,23 @@ services:
       - mosquitto-conf:/mosquitto/config
     restart: unless-stopped
 
+  satisfactory:
+    image: ghcr.io/wolveix/satisfactory-server:latest
+    container_name: satisfactory
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - MAXPLAYERS=10
+      - PGMEM=8192
+      - STEAMBETA=false
+    ports:
+      - '7777:7777/tcp'
+      - '7777:7777/udp'
+      - '8888:8888/tcp'
+    volumes:
+      - satisfactory-data:/config
+    restart: unless-stopped
+
 networks:
   zwave:
   npm:
@@ -167,3 +184,4 @@ volumes:
   mosquitto-data:
   mosquitto-logs:
   mosquitto-conf:
+  satisfactory-data:
