@@ -152,6 +152,32 @@ services:
       - mosquitto-conf:/mosquitto/config
     restart: unless-stopped
 
+  self-update-server:
+    container_name: self-update-server
+    build:
+      context: /home/wbw/work/self-update-server
+      target: server
+    restart: unless-stopped
+    networks:
+      - npm
+    volumes:
+      - /home/wbw/work/self-update-server/releases:/releases:ro
+
+  self-update-worker:
+    container_name: self-update-worker
+    build:
+      context: /home/wbw/work/self-update-server
+      target: worker
+    restart: unless-stopped
+    volumes:
+      - /home/wbw/work/self-update-server/releases:/releases:rw
+      - /home/wbw/work/self-updater:/src/self-updater:ro
+    env_file:
+      - /home/wbw/work/self-update-server/config.env
+    environment:
+      RELEASE_DIR: /releases
+      BUILD_SCRIPT: /src/self-update-server/build.sh
+
   satisfactory:
     image: ghcr.io/wolveix/satisfactory-server:latest
     container_name: satisfactory
