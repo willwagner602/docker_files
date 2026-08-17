@@ -132,6 +132,25 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
     restart: unless-stopped
 
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: home
+    environment:
+      - TS_HOSTNAME=home
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_EXTRA_ARGS=--advertise-routes=10.0.0.0/24 --advertise-exit-node
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    restart: unless-stopped
+
   otrecorder:
     image: owntracks/recorder
     ports:
@@ -152,22 +171,53 @@ services:
       - mosquitto-conf:/mosquitto/config
     restart: unless-stopped
 
-  satisfactory:
-    image: ghcr.io/wolveix/satisfactory-server:latest
-    container_name: satisfactory
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - MAXPLAYERS=10
-      - PGMEM=8192
-      - STEAMBETA=false
-    ports:
-      - '7777:7777/tcp'
-      - '7777:7777/udp'
-      - '8888:8888/tcp'
-    volumes:
-      - satisfactory-data:/config
+  job-digest:
+    build:
+      context: https://github.com/willwagner602/job-search-tooling.git#for_will
+      dockerfile: Dockerfile
+
+    container_name: job-digest
     restart: unless-stopped
+
+    environment:
+      TZ: America/Los_Angeles
+      JOB_DIGEST_DIR: /app/.job_digest
+      JOB_DIGEST_SECRETS: /app/secrets.json
+      JOB_DIGEST_HOST: 0.0.0.0
+      JOB_DIGEST_PORT: "8765"
+
+    ports:
+      - "8765:8765"
+
+    volumes:
+      - ./secrets.json:/app/secrets.json:ro
+      - ./job-digest-state:/app/.job_digest
+
+  self-update-server:
+    container_name: self-update-server
+    build:
+      context: /home/wbw/work/self-update-server
+      target: server
+    restart: unless-stopped
+    networks:
+      - npm
+    volumes:
+      - /home/wbw/work/self-update-server/releases:/releases:ro
+
+  self-update-worker:
+    container_name: self-update-worker
+    build:
+      context: /home/wbw/work/self-update-server
+      target: worker
+    restart: unless-stopped
+    volumes:
+      - /home/wbw/work/self-update-server/releases:/releases:rw
+      - /home/wbw/work/self-updater:/src/self-updater:ro
+    env_file:
+      - /home/wbw/work/self-update-server/config.env
+    environment:
+      RELEASE_DIR: /releases
+      BUILD_SCRIPT: /src/self-update-server/build.sh
 
 networks:
   zwave:
@@ -181,7 +231,7 @@ volumes:
   etc_wireguard:
   otr-store:
   otr-config:
+  tailscale-state:
   mosquitto-data:
   mosquitto-logs:
   mosquitto-conf:
-  satisfactory-data:
