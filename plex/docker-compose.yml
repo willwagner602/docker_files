@@ -99,6 +99,14 @@ services:
     container_name: sabnzbd
     image: ghcr.io/hotio/sabnzbd
     restart: unless-stopped
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 8 https://1.1.1.1 -o /dev/null || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     ports:
       - "9090:9090"
     environment:
@@ -135,10 +143,39 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1 #
       - net.ipv6.conf.all.disable_ipv6=1 #
 
+  unpackerr:
+    image: golift/unpackerr:latest
+    container_name: unpackerr
+    restart: unless-stopped
+    environment:
+      - TZ=America/Los_Angeles
+      - UN_LOG_FILE=/config/unpackerr.log
+      - UN_SONARR_0_URL=http://sonarr:8989
+      - UN_SONARR_0_API_KEY=${SONARR_API_KEY}
+      - UN_SONARR_0_PATHS_0=/data
+      - UN_SONARR_0_PROTOCOLS=torrent,TorrentDownloadProtocol
+      - UN_SONARR_0_DELETE_ORIG=false
+      - UN_RADARR_0_URL=http://radarr:7878
+      - UN_RADARR_0_API_KEY=${RADARR_API_KEY}
+      - UN_RADARR_0_PATHS_0=/data
+      - UN_RADARR_0_PROTOCOLS=torrent,TorrentDownloadProtocol
+      - UN_RADARR_0_DELETE_ORIG=false
+    volumes:
+      - /media/plex:/data
+      - /home/wbw/unpackerr:/config
+
   qbittorrent:
     container_name: qbittorrent
     image: ghcr.io/hotio/qbittorrent
     restart: unless-stopped
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS --max-time 8 https://1.1.1.1 -o /dev/null || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
     ports:
       - "8080:8080"
     environment:
@@ -213,3 +250,37 @@ services:
       - /media/plex/database:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
+
+  autoheal:
+    image: willfarrell/autoheal
+    container_name: autoheal
+    restart: unless-stopped
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=30
+      - AUTOHEAL_START_PERIOD=90
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  health-notify:
+    image: docker:cli
+    container_name: health-notify
+    restart: unless-stopped
+    command: sh -c "apk add --no-cache ca-certificates curl jq openssl >/dev/null && sh /notify.sh"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - SAB_API_KEY=${SAB_API_KEY}
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - RADARR_API_KEY=${RADARR_API_KEY}
+      - STATE_DIR=/state
+      - POLL_INTERVAL=60
+      - STALL_SECONDS=3600
+      - DISK_FREE_THRESHOLD=25
+      - CERT_WARN_DAYS=30
+      - CERT_HOST=willwagner.me
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/wbw/scripts/health-notify.sh:/notify.sh:ro
+      - /home/wbw/health-notify:/state
+      - /media/plex:/data:ro

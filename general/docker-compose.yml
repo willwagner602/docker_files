@@ -173,7 +173,7 @@ services:
 
   job-digest:
     build:
-      context: https://github.com/willwagner602/job-search-tooling.git#for_will
+      context: /home/wbw/work/job-search-tooling
       dockerfile: Dockerfile
 
     container_name: job-digest
@@ -198,6 +198,7 @@ services:
     build:
       context: /home/wbw/work/self-update-server
       target: server
+    # Port is intentionally not published; access is through the npm Docker network.
     restart: unless-stopped
     networks:
       - npm
@@ -213,6 +214,7 @@ services:
     volumes:
       - /home/wbw/work/self-update-server/releases:/releases:rw
       - /home/wbw/work/self-updater:/src/self-updater:ro
+      - /home/wbw/keys/signing-key:/run/secrets/signing-key:ro
     env_file:
       - /home/wbw/work/self-update-server/config.env
     environment:
