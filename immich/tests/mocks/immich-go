@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+set -eu
+printf '%s\n' "$*" > "$MOCK_ARGV"
+printf '%s\n' "${IMMICH_API_KEY-<unset>}" > "$MOCK_ENV_KEY"
+if [ -f immich-go.toml ]; then cp immich-go.toml "$MOCK_CONFIG"; fi
+printf 'Discovered media: 3\nWarning: example warning\nUnmatched files: 1\nUploaded assets: 2\nDuplicates skipped: 1\n'
+exit "${MOCK_RC:-0}"

@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+set -eu
+out=''
+for arg in "$@"; do
+  case "$arg" in
+    -o) shift; out=${1:-} ;;
+  esac
+done
+if [ -n "$out" ]; then printf '{"res":true}\n' > "$out"; fi
+exit 0
