@@ -1,6 +1,6 @@
 services:
   photo-uploader:
-    image: ghcr.io/willwagner602/photo-uploader:1.0.1
+    image: ghcr.io/willwagner602/photo-uploader:latest
     container_name: photo-uploader
     restart: unless-stopped
     ports:
