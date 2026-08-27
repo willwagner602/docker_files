@@ -36,6 +36,10 @@ The `npm` network is declared with the fixed name `npm` so these separate Compos
 
 - `media/frigate/docker-compose.yml` contains Frigate and is isolated.
 
+### `media/photo-uploader/`
+
+- `media/photo-uploader/docker-compose.yml` contains the photo uploader. It is independent and uses a persistent SQLite volume plus a read-only photo-library bind mount.
+
 ## Running a service
 
 Run a file from the repository root, or change into its directory first:
@@ -45,6 +49,8 @@ docker compose -f media/plex/docker-compose-plex.yml up -d
 docker compose -f media/plex/docker-compose-arr.yml up -d
 docker compose -f general/docker-compose-unifi.yml up -d
 docker compose -f media/frigate/docker-compose.yml up -d
+# Requires PHOTO_UPLOADER_PHOTO_PATH and the PHOTO_UPLOADER_* credentials in the environment.
+docker compose -f media/photo-uploader/docker-compose.yml up -d
 ```
 
 To stop or inspect a project, use the same file:
@@ -62,7 +68,7 @@ Run each file as its own Compose project. Do not combine independent files with 
 These files use host-specific bind mounts, device mappings, build contexts, and environment variables. Before starting a service:
 
 1. Confirm that the referenced host paths and devices exist.
-2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, and the VPN variables used by SABnzbd and qBittorrent.
+2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, and the VPN variables used by SABnzbd and qBittorrent. Photo uploader additionally requires `PHOTO_UPLOADER_PHOTO_PATH`, operator credentials, a session secret, a Bluesky handle, and a Bluesky App Password; it stores its SQLite database in the named `photo-uploader-data` volume.
 3. Review credentials and secrets before deployment. Some existing service definitions contain deployment-specific values and should be treated as sensitive.
 4. Ensure the required Docker networks and host permissions are available.
 
