@@ -1,0 +1,18 @@
+services:
+  self-update-server:
+    container_name: self-update-server
+    build:
+      context: /home/wbw/work/self-update-server
+      target: server
+    # Port is intentionally not published; access is through the npm Docker network.
+    restart: unless-stopped
+    networks:
+      - npm
+    volumes:
+      - /home/wbw/work/self-update-server/releases:/releases:ro
+
+
+networks:
+  npm:
+    name: npm
+    driver: bridge

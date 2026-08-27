@@ -1,0 +1,23 @@
+services:
+  photo-uploader:
+    image: ghcr.io/willwagner602/photo-uploader:latest
+    container_name: photo-uploader
+    restart: unless-stopped
+    ports:
+      - "${PHOTO_UPLOADER_PORT:-8080}:8080"
+    environment:
+      PHOTO_UPLOADER_OPERATOR_USERNAME: ${PHOTO_UPLOADER_OPERATOR_USERNAME:?set an operator username}
+      PHOTO_UPLOADER_OPERATOR_PASSWORD: ${PHOTO_UPLOADER_OPERATOR_PASSWORD:?set an operator password}
+      PHOTO_UPLOADER_SESSION_SECRET: ${PHOTO_UPLOADER_SESSION_SECRET:?set a session secret of at least 32 bytes}
+      PHOTO_UPLOADER_SCAN_ROOTS: /photos
+      PHOTO_UPLOADER_BSKY_HANDLE: ${PHOTO_UPLOADER_BSKY_HANDLE:?set a Bluesky handle}
+      PHOTO_UPLOADER_BSKY_APP_PASSWORD: ${PHOTO_UPLOADER_BSKY_APP_PASSWORD:?set a Bluesky app password}
+      PHOTO_UPLOADER_BSKY_SERVICE_URL: ${PHOTO_UPLOADER_BSKY_SERVICE_URL:-https://bsky.social}
+      PHOTO_UPLOADER_PUBLIC_BASE_URL: ${PHOTO_UPLOADER_PUBLIC_BASE_URL:-http://localhost:8080}
+      PHOTO_UPLOADER_SUPERVISOR_INTERVAL: ${PHOTO_UPLOADER_SUPERVISOR_INTERVAL:-60s}
+    volumes:
+      - photo-uploader-data:/data
+      - ${PHOTO_UPLOADER_PHOTO_PATH:?set the host photo directory}:/photos:ro
+
+volumes:
+  photo-uploader-data:
