@@ -4,7 +4,7 @@ services:
     container_name: photo-uploader
     restart: unless-stopped
     ports:
-      - "${PHOTO_UPLOADER_PORT:-8080}:8080"
+      - "${PHOTO_UPLOADER_PORT:-9190}:9190"
     environment:
       PHOTO_UPLOADER_OPERATOR_USERNAME: ${PHOTO_UPLOADER_OPERATOR_USERNAME:?set an operator username}
       PHOTO_UPLOADER_OPERATOR_PASSWORD: ${PHOTO_UPLOADER_OPERATOR_PASSWORD:?set an operator password}
