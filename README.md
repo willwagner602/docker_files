@@ -8,18 +8,18 @@ Docker Compose definitions for the services running on the home & media servers.
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
-| `docker-compose-arr.yml` | Sonarr, Radarr, Unpackerr | Unpackerr connects to Sonarr and Radarr using their Compose service names. |
-| `docker-compose-plex.yml` | Plex | Independent media server. |
-| `docker-compose-ombi.yml` | Ombi | Independent request-management service. |
-| `docker-compose-prowlarr.yml` | Prowlarr | Independent indexer manager. |
-| `docker-compose-flaresolverr.yml` | FlareSolverr | Independent proxy/solver service. |
-| `docker-compose-sabnzbd.yml` | SABnzbd | Independent download service. |
-| `docker-compose-qbittorrent.yml` | qBittorrent | Independent download service. |
-| `docker-compose-postgres.yml` | PostgreSQL | Separate database service. |
-| `docker-compose-autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
-| `docker-compose-health-notify.yml` | Health notifier | Watches Docker/container state through the Docker socket. |
-| `docker-compose-frigate.yml` | Frigate | Independent NVR service. |
-| `docker-compose-photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
+| `arr.yml` | Sonarr, Radarr, Unpackerr | Unpackerr connects to Sonarr and Radarr using their Compose service names. |
+| `plex.yml` | Plex | Independent media server. |
+| `ombi.yml` | Ombi | Independent request-management service. |
+| `prowlarr.yml` | Prowlarr | Independent indexer manager. |
+| `flaresolverr.yml` | FlareSolverr | Independent proxy/solver service. |
+| `sabnzbd.yml` | SABnzbd | Independent download service. |
+| `qbittorrent.yml` | qBittorrent | Independent download service. |
+| `postgres.yml` | PostgreSQL | Separate database service. |
+| `autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
+| `health-notify.yml` | Health notifier | Watches Docker/container state through the Docker socket. |
+| `frigate.yml` | Frigate | Independent NVR service. |
+| `photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
 
 `media/compose.yaml` is the canonical media-server deployment. It sets the stable project name `media` and includes the component files, so the complete deployment can be managed without `-f` or `-p`. Docker Compose 2.20.3 or newer is required for `include`. The ARR services remain in one component file because they communicate using Compose service names.
 
@@ -27,10 +27,10 @@ Docker Compose definitions for the services running on the home & media servers.
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
-| `docker-compose-unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname. |
-| `docker-compose-nginx-proxy.yml` | Nginx Proxy Manager | Independent service on the shared `npm` Docker network. |
-| `docker-compose-wg-easy.yml` | wg-easy | Independent service on the shared `npm` Docker network. |
-| `docker-compose-self-update-server.yml` | Self-update server | Independent service on the shared `npm` Docker network. |
+| `unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname. |
+| `nginx-proxy.yml` | Nginx Proxy Manager | Independent service on the shared `npm` Docker network. |
+| `wg-easy.yml` | wg-easy | Independent service on the shared `npm` Docker network. |
+| `self-update-server.yml` | Self-update server | Independent service on the shared `npm` Docker network. |
 
 The `npm` network is declared with the fixed name `npm` so these separate Compose projects can still communicate when needed. Start the proxy/networked services from the same host where that shared network is available.
 
@@ -65,7 +65,7 @@ docker compose down
 General-server services remain independently managed by file, for example:
 
 ```sh
-docker compose -f general/docker-compose-unifi.yml up -d
+docker compose -f general/unifi.yml up -d
 ```
 
 ## Configuration and host prerequisites
@@ -85,7 +85,7 @@ Validate the complete media model and individual general-server files before dep
 
 ```sh
 (cd media && docker compose config --quiet)
-docker compose -f general/docker-compose-unifi.yml config --quiet
+docker compose -f general/unifi.yml config --quiet
 ```
 
 The repository includes multiple host-specific configurations, so successful syntax validation does not guarantee that every bind mount, device, credential, or external build context is available on another machine.
