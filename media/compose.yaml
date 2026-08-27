@@ -1,0 +1,15 @@
+name: media
+
+include:
+  - docker-compose-arr.yml
+  - docker-compose-autoheal.yml
+  - docker-compose-flaresolverr.yml
+  - docker-compose-frigate.yml
+  - docker-compose-health-notify.yml
+  - docker-compose-ombi.yml
+  - docker-compose-photo-uploader.yml
+  - docker-compose-plex.yml
+  - docker-compose-postgres.yml
+  - docker-compose-prowlarr.yml
+  - docker-compose-qbittorrent.yml
+  - docker-compose-sabnzbd.yml

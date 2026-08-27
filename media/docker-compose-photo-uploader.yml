@@ -21,3 +21,5 @@ services:
 
 volumes:
   photo-uploader-data:
+    # Preserve the volume name created when this file lived under media/photo-uploader/.
+    name: photo-uploader_photo-uploader-data

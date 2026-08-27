@@ -1,10 +1,10 @@
 # Docker Compose Services
 
-Docker Compose definitions for the services running on the home server. Each independent service or dependency group has its own Compose file so services can be upgraded, restarted, and deployed without bringing up unrelated containers.
+Docker Compose definitions for the services running on the home & media servers. Each independent service or dependency group has its own Compose file so services can be upgraded, restarted, and deployed without bringing up unrelated containers.
 
 ## Repository layout
 
-### `media/plex/`
+### `media/`
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
@@ -17,9 +17,11 @@ Docker Compose definitions for the services running on the home server. Each ind
 | `docker-compose-qbittorrent.yml` | qBittorrent | Independent download service. |
 | `docker-compose-postgres.yml` | PostgreSQL | Separate database service. |
 | `docker-compose-autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
-| `docker-compose-health-notify.yml` | Health notifier | Runs independently and watches Docker/container state through the Docker socket. |
+| `docker-compose-health-notify.yml` | Health notifier | Watches Docker/container state through the Docker socket. |
+| `docker-compose-frigate.yml` | Frigate | Independent NVR service. |
+| `docker-compose-photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
 
-The ARR stack shares `/media/plex` on the host, but its container-to-container dependency is the reason those three services remain together. The shared data directory alone does not require a shared Compose project.
+`media/compose.yaml` is the canonical media-server deployment. It sets the stable project name `media` and includes the component files, so the complete deployment can be managed without `-f` or `-p`. Docker Compose 2.20.3 or newer is required for `include`. The ARR services remain in one component file because they communicate using Compose service names.
 
 ### `general/` (unchanged from the original layout)
 
@@ -32,36 +34,39 @@ The ARR stack shares `/media/plex` on the host, but its container-to-container d
 
 The `npm` network is declared with the fixed name `npm` so these separate Compose projects can still communicate when needed. Start the proxy/networked services from the same host where that shared network is available.
 
-### `media/frigate/`
-
-- `media/frigate/docker-compose.yml` contains Frigate and is isolated.
-
-### `media/photo-uploader/`
-
-- `media/photo-uploader/docker-compose.yml` contains the photo uploader. It is independent and uses a persistent SQLite volume plus a read-only photo-library bind mount.
-
 ## Running a service
 
-Run a file from the repository root, or change into its directory first:
+Manage the complete media-server deployment from `media/`:
 
 ```sh
-docker compose -f media/plex/docker-compose-plex.yml up -d
-docker compose -f media/plex/docker-compose-arr.yml up -d
+cd media
+# Requires all media deployment variables, including PHOTO_UPLOADER_PHOTO_PATH and PHOTO_UPLOADER_* credentials.
+docker compose up -d
+docker compose ps
+docker compose logs -f
+```
+
+Operate on an individual service through the same canonical model:
+
+```sh
+docker compose up -d plex
+docker compose restart plex
+docker compose logs -f plex
+docker compose stop plex
+```
+
+Because `compose.yaml` contains the complete application model, whole-deployment lifecycle commands are predictable:
+
+```sh
+docker compose up -d --remove-orphans
+docker compose down
+```
+
+General-server services remain independently managed by file, for example:
+
+```sh
 docker compose -f general/docker-compose-unifi.yml up -d
-docker compose -f media/frigate/docker-compose.yml up -d
-# Requires PHOTO_UPLOADER_PHOTO_PATH and the PHOTO_UPLOADER_* credentials in the environment.
-docker compose -f media/photo-uploader/docker-compose.yml up -d
 ```
-
-To stop or inspect a project, use the same file:
-
-```sh
-docker compose -f media/plex/docker-compose-arr.yml ps
-docker compose -f media/plex/docker-compose-arr.yml logs -f
-docker compose -f media/plex/docker-compose-arr.yml down
-```
-
-Run each file as its own Compose project. Do not combine independent files with `-f` unless you intentionally want Compose to merge their service definitions.
 
 ## Configuration and host prerequisites
 
@@ -76,10 +81,10 @@ The Compose files do not create host directories or hardware devices automatical
 
 ## Validation
 
-Validate a Compose file before deploying:
+Validate the complete media model and individual general-server files before deploying:
 
 ```sh
-docker compose -f media/plex/docker-compose-arr.yml config --quiet
+(cd media && docker compose config --quiet)
 docker compose -f general/docker-compose-unifi.yml config --quiet
 ```
 
