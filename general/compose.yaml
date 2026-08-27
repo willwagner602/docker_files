@@ -1,0 +1,7 @@
+name: general
+
+include:
+  - nginx-proxy.yml
+  - self-update-server.yml
+  - unifi.yml
+  - wg-easy.yml

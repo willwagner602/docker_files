@@ -21,9 +21,9 @@ Docker Compose definitions for the services running on the home & media servers.
 | `frigate.yml` | Frigate | Independent NVR service. |
 | `photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
 
-`media/compose.yaml` is the canonical media-server deployment. It sets the stable project name `media` and includes the component files, so the complete deployment can be managed without `-f` or `-p`. Docker Compose 2.20.3 or newer is required for `include`. The ARR services remain in one component file because they communicate using Compose service names.
+`media/compose.yaml` is the canonical media-server deployment. It sets the stable project name `media` and includes the component files, so the complete deployment can be managed without `-f` or `-p`. The ARR services remain in one component file because they communicate using Compose service names.
 
-### `general/` (unchanged from the original layout)
+### `general/`
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
@@ -32,9 +32,11 @@ Docker Compose definitions for the services running on the home & media servers.
 | `wg-easy.yml` | wg-easy | Independent service on the shared `npm` Docker network. |
 | `self-update-server.yml` | Self-update server | Independent service on the shared `npm` Docker network. |
 
-The `npm` network is declared with the fixed name `npm` so these separate Compose projects can still communicate when needed. Start the proxy/networked services from the same host where that shared network is available.
+`general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes all four component files. The `npm` network has the fixed name `npm` so Nginx Proxy Manager, wg-easy, and the self-update server share it within the combined deployment.
 
 ## Running a service
+
+The canonical files use top-level `include`, which requires Docker Compose 2.20.3 or newer.
 
 Manage the complete media-server deployment from `media/`:
 
@@ -62,10 +64,20 @@ docker compose up -d --remove-orphans
 docker compose down
 ```
 
-General-server services remain independently managed by file, for example:
+Manage the complete general-server deployment the same way:
 
 ```sh
-docker compose -f general/unifi.yml up -d
+cd general
+docker compose up -d
+docker compose ps
+docker compose logs -f
+```
+
+Individual general services can also be managed through the canonical model:
+
+```sh
+docker compose up -d unifi
+docker compose logs -f unifi
 ```
 
 ## Configuration and host prerequisites
@@ -81,11 +93,11 @@ The Compose files do not create host directories or hardware devices automatical
 
 ## Validation
 
-Validate the complete media model and individual general-server files before deploying:
+Validate both complete application models before deploying:
 
 ```sh
 (cd media && docker compose config --quiet)
-docker compose -f general/unifi.yml config --quiet
+(cd general && docker compose config --quiet)
 ```
 
 The repository includes multiple host-specific configurations, so successful syntax validation does not guarantee that every bind mount, device, credential, or external build context is available on another machine.
