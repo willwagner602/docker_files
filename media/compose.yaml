@@ -1,0 +1,15 @@
+name: media
+
+include:
+  - arr.yml
+  - autoheal.yml
+  - flaresolverr.yml
+  - frigate.yml
+  - health-notify.yml
+  - ombi.yml
+  - photo-uploader.yml
+  - plex.yml
+  - postgres.yml
+  - prowlarr.yml
+  - qbittorrent.yml
+  - sabnzbd.yml

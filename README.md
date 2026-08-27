@@ -1,67 +1,84 @@
 # Docker Compose Services
 
-Docker Compose definitions for the services running on the home server. Each independent service or dependency group has its own Compose file so services can be upgraded, restarted, and deployed without bringing up unrelated containers.
+Docker Compose definitions for the services running on the home & media servers. Each independent service or dependency group has its own Compose file so services can be upgraded, restarted, and deployed without bringing up unrelated containers.
 
 ## Repository layout
 
-### `media/plex/`
+### `media/`
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
-| `docker-compose-arr.yml` | Sonarr, Radarr, Unpackerr | Unpackerr connects to Sonarr and Radarr using their Compose service names. |
-| `docker-compose-plex.yml` | Plex | Independent media server. |
-| `docker-compose-ombi.yml` | Ombi | Independent request-management service. |
-| `docker-compose-prowlarr.yml` | Prowlarr | Independent indexer manager. |
-| `docker-compose-flaresolverr.yml` | FlareSolverr | Independent proxy/solver service. |
-| `docker-compose-sabnzbd.yml` | SABnzbd | Independent download service. |
-| `docker-compose-qbittorrent.yml` | qBittorrent | Independent download service. |
-| `docker-compose-postgres.yml` | PostgreSQL | Separate database service. |
-| `docker-compose-autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
-| `docker-compose-health-notify.yml` | Health notifier | Runs independently and watches Docker/container state through the Docker socket. |
+| `arr.yml` | Sonarr, Radarr, Unpackerr | Unpackerr connects to Sonarr and Radarr using their Compose service names. |
+| `plex.yml` | Plex | Independent media server. |
+| `ombi.yml` | Ombi | Independent request-management service. |
+| `prowlarr.yml` | Prowlarr | Independent indexer manager. |
+| `flaresolverr.yml` | FlareSolverr | Independent proxy/solver service. |
+| `sabnzbd.yml` | SABnzbd | Independent download service. |
+| `qbittorrent.yml` | qBittorrent | Independent download service. |
+| `postgres.yml` | PostgreSQL | Separate database service. |
+| `autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
+| `health-notify.yml` | Health notifier | Watches Docker/container state through the Docker socket. |
+| `frigate.yml` | Frigate | Independent NVR service. |
+| `photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
 
-The ARR stack shares `/media/plex` on the host, but its container-to-container dependency is the reason those three services remain together. The shared data directory alone does not require a shared Compose project.
+`media/compose.yaml` is the canonical media-server deployment. It sets the stable project name `media` and includes the component files, so the complete deployment can be managed without `-f` or `-p`. The ARR services remain in one component file because they communicate using Compose service names.
 
-### `general/` (unchanged from the original layout)
+### `general/`
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
-| `docker-compose-unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname. |
-| `docker-compose-nginx-proxy.yml` | Nginx Proxy Manager | Independent service on the shared `npm` Docker network. |
-| `docker-compose-wg-easy.yml` | wg-easy | Independent service on the shared `npm` Docker network. |
-| `docker-compose-self-update-server.yml` | Self-update server | Independent service on the shared `npm` Docker network. |
+| `unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname. |
+| `nginx-proxy.yml` | Nginx Proxy Manager | Independent service on the shared `npm` Docker network. |
+| `wg-easy.yml` | wg-easy | Independent service on the shared `npm` Docker network. |
+| `self-update-server.yml` | Self-update server | Independent service on the shared `npm` Docker network. |
 
-The `npm` network is declared with the fixed name `npm` so these separate Compose projects can still communicate when needed. Start the proxy/networked services from the same host where that shared network is available.
-
-### `media/frigate/`
-
-- `media/frigate/docker-compose.yml` contains Frigate and is isolated.
-
-### `media/photo-uploader/`
-
-- `media/photo-uploader/docker-compose.yml` contains the photo uploader. It is independent and uses a persistent SQLite volume plus a read-only photo-library bind mount.
+`general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes all four component files. The `npm` network has the fixed name `npm` so Nginx Proxy Manager, wg-easy, and the self-update server share it within the combined deployment.
 
 ## Running a service
 
-Run a file from the repository root, or change into its directory first:
+The canonical files use top-level `include`, which requires Docker Compose 2.20.3 or newer.
+
+Manage the complete media-server deployment from `media/`:
 
 ```sh
-docker compose -f media/plex/docker-compose-plex.yml up -d
-docker compose -f media/plex/docker-compose-arr.yml up -d
-docker compose -f general/docker-compose-unifi.yml up -d
-docker compose -f media/frigate/docker-compose.yml up -d
-# Requires PHOTO_UPLOADER_PHOTO_PATH and the PHOTO_UPLOADER_* credentials in the environment.
-docker compose -f media/photo-uploader/docker-compose.yml up -d
+cd media
+# Requires all media deployment variables, including PHOTO_UPLOADER_PHOTO_PATH and PHOTO_UPLOADER_* credentials.
+docker compose up -d
+docker compose ps
+docker compose logs -f
 ```
 
-To stop or inspect a project, use the same file:
+Operate on an individual service through the same canonical model:
 
 ```sh
-docker compose -f media/plex/docker-compose-arr.yml ps
-docker compose -f media/plex/docker-compose-arr.yml logs -f
-docker compose -f media/plex/docker-compose-arr.yml down
+docker compose up -d plex
+docker compose restart plex
+docker compose logs -f plex
+docker compose stop plex
 ```
 
-Run each file as its own Compose project. Do not combine independent files with `-f` unless you intentionally want Compose to merge their service definitions.
+Because `compose.yaml` contains the complete application model, whole-deployment lifecycle commands are predictable:
+
+```sh
+docker compose up -d --remove-orphans
+docker compose down
+```
+
+Manage the complete general-server deployment the same way:
+
+```sh
+cd general
+docker compose up -d
+docker compose ps
+docker compose logs -f
+```
+
+Individual general services can also be managed through the canonical model:
+
+```sh
+docker compose up -d unifi
+docker compose logs -f unifi
+```
 
 ## Configuration and host prerequisites
 
@@ -76,11 +93,11 @@ The Compose files do not create host directories or hardware devices automatical
 
 ## Validation
 
-Validate a Compose file before deploying:
+Validate both complete application models before deploying:
 
 ```sh
-docker compose -f media/plex/docker-compose-arr.yml config --quiet
-docker compose -f general/docker-compose-unifi.yml config --quiet
+(cd media && docker compose config --quiet)
+(cd general && docker compose config --quiet)
 ```
 
 The repository includes multiple host-specific configurations, so successful syntax validation does not guarantee that every bind mount, device, credential, or external build context is available on another machine.
