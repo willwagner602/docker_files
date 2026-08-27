@@ -1,4 +1,5 @@
 .idea
+.env
 zwave/zwave-backup
 
 # Host deployment paths are outside this repository, documented here for clarity only.
