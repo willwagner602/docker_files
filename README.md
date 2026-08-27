@@ -4,7 +4,7 @@ Docker Compose definitions for the services running on the home server. Each ind
 
 ## Repository layout
 
-### `plex/`
+### `media/plex/`
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
@@ -21,7 +21,7 @@ Docker Compose definitions for the services running on the home server. Each ind
 
 The ARR stack shares `/media/plex` on the host, but its container-to-container dependency is the reason those three services remain together. The shared data directory alone does not require a shared Compose project.
 
-### `general/`
+### `general/` (unchanged from the original layout)
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
@@ -32,28 +32,27 @@ The ARR stack shares `/media/plex` on the host, but its container-to-container d
 
 The `npm` network is declared with the fixed name `npm` so these separate Compose projects can still communicate when needed. Start the proxy/networked services from the same host where that shared network is available.
 
-### Other projects
+### `media/frigate/`
 
-- `frigate/docker-compose.yml` contains Frigate and is already isolated.
-- `immich/` contains the Immich deployment and migration tooling. See [`immich/README.md`](immich/README.md).
+- `media/frigate/docker-compose.yml` contains Frigate and is isolated.
 
 ## Running a service
 
 Run a file from the repository root, or change into its directory first:
 
 ```sh
-docker compose -f plex/docker-compose-plex.yml up -d
-docker compose -f plex/docker-compose-arr.yml up -d
+docker compose -f media/plex/docker-compose-plex.yml up -d
+docker compose -f media/plex/docker-compose-arr.yml up -d
 docker compose -f general/docker-compose-unifi.yml up -d
-docker compose -f frigate/docker-compose.yml up -d
+docker compose -f media/frigate/docker-compose.yml up -d
 ```
 
 To stop or inspect a project, use the same file:
 
 ```sh
-docker compose -f plex/docker-compose-arr.yml ps
-docker compose -f plex/docker-compose-arr.yml logs -f
-docker compose -f plex/docker-compose-arr.yml down
+docker compose -f media/plex/docker-compose-arr.yml ps
+docker compose -f media/plex/docker-compose-arr.yml logs -f
+docker compose -f media/plex/docker-compose-arr.yml down
 ```
 
 Run each file as its own Compose project. Do not combine independent files with `-f` unless you intentionally want Compose to merge their service definitions.
@@ -74,7 +73,7 @@ The Compose files do not create host directories or hardware devices automatical
 Validate a Compose file before deploying:
 
 ```sh
-docker compose -f plex/docker-compose-arr.yml config --quiet
+docker compose -f media/plex/docker-compose-arr.yml config --quiet
 docker compose -f general/docker-compose-unifi.yml config --quiet
 ```
 
