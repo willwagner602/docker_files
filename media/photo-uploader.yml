@@ -1,6 +1,6 @@
 services:
   photo-uploader:
-    image: ghcr.io/willwagner602/photo-uploader:latest
+    image: ghcr.io/willwagner602/photo-uploader:1.0.1
     container_name: photo-uploader
     restart: unless-stopped
     ports:
@@ -16,7 +16,7 @@ services:
       PHOTO_UPLOADER_PUBLIC_BASE_URL: ${PHOTO_UPLOADER_PUBLIC_BASE_URL:-http://localhost:8080}
       PHOTO_UPLOADER_SUPERVISOR_INTERVAL: ${PHOTO_UPLOADER_SUPERVISOR_INTERVAL:-60s}
     volumes:
-      - photo-uploader-data:/data
+      - /home/wbw/photo-uploader-data:/data
       - ${PHOTO_UPLOADER_PHOTO_PATH:?set the host photo directory}:/photos:ro
 
 volumes:
