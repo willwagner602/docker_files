@@ -1,17 +1,4 @@
 .idea
 zwave/zwave-backup
 
-# Immich runtime data is host-only; keep templates and scripts trackable.
-/immich/.env
-/immich/postgres/
-/immich/logs/
-/immich/state/*.secret
-/immich/state/*-report.txt
-/immich/state/*
-/immich/docker-compose.override.yml
-/immich/release-provenance.txt
-/immich/*.zip
-/immich/**/*.zip
-/immich-go.toml
-
 # Host deployment paths are outside this repository, documented here for clarity only.
