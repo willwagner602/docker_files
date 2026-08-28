@@ -12,6 +12,6 @@ services:
       FTLCONF_webserver_api_password: 'na5RNtPM'
       FTLCONF_dns_listeningMode: 'all'
     volumes:
-      - './etc-pihole/:/etc/pihole/'
-      - './etc-dnsmasq.d/:/etc/dnsmasq.d/'
+      - /home/wbw/etc-pihole:/etc/pihole
+      - /home/wbw/etc-dnsmasq.d:/etc/dnsmasq.d
     restart: unless-stopped

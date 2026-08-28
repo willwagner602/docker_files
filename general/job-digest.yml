@@ -14,5 +14,5 @@ services:
     ports:
       - "8765:8765"
     volumes:
-      - ./secrets.json:/app/secrets.json:ro
-      - ./job-digest-state:/app/.job_digest
+      - /home/wbw/secrets.json:/app/secrets.json:ro
+      - /home/wbw/job-digest-state:/app/.job_digest
