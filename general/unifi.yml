@@ -18,6 +18,8 @@ services:
 
   unifi:
     image: lscr.io/linuxserver/unifi-network-application:latest
+    depends_on:
+      - unifi-db
     container_name: unifi
     environment:
       - PUID=1000

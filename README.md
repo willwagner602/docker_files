@@ -27,12 +27,18 @@ Docker Compose definitions for the services running on the home & media servers.
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
-| `unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname. |
+| `homeassistant.yml` | Home Assistant | Independent host-networked service. |
+| `zwavejsui.yml` | Z-Wave JS UI | Independent service with its own network and persistent state. |
+| `pihole.yml` | Pi-hole | Independent DNS service. |
 | `nginx-proxy.yml` | Nginx Proxy Manager | Independent service on the shared `npm` Docker network. |
+| `unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname, so these services remain together. |
 | `wg-easy.yml` | wg-easy | Independent service on the shared `npm` Docker network. |
-| `self-update-server.yml` | Self-update server | Independent service on the shared `npm` Docker network. |
+| `tailscale.yml` | Tailscale | Independent host-networked service. |
+| `owntracks.yml` | OwnTracks Recorder | Independent service with persistent state. |
+| `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
+| `job-digest.yml` | Job Digest | Independent locally built service. |
 
-`general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes all four component files. The `npm` network has the fixed name `npm` so Nginx Proxy Manager, wg-easy, and the self-update server share it within the combined deployment.
+`general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 
 ## Running a service
 
