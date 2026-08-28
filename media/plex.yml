@@ -20,6 +20,6 @@ services:
       - PLEX_CLAIM=claim-nxB1xXcXiSxxmT76p_m_
       - TZ=America/Los_Angeles
     volumes:
-      - /media/plex/plex:/config
-      - /media/plex/tv:/tv
-      - /media/plex/movies:/movies
+      - /bigdisk/plex/plex:/config
+      - /bigdisk/plex/tv:/tv
+      - /bigdisk/plex/movies:/movies

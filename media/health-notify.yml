@@ -20,4 +20,4 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - /home/wbw/scripts/health-notify.sh:/notify.sh:ro
       - /home/wbw/health-notify:/state
-      - /media/plex:/data:ro
+      - /bigdisk/plex:/data:ro

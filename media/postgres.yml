@@ -9,6 +9,6 @@ services:
       - POSTGRES_DB=ombi
       - PGDATA=/var/lib/postgresql/data/pgdata
     volumes:
-      - /media/plex/database:/var/lib/postgresql/data
+      - /bigdisk/plex/database:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"

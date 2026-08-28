@@ -9,8 +9,8 @@ services:
       - PUID=1001
       - PGID=1001
     volumes:
-      - /media/plex/:/data
-      - /media/plex/sonarr:/config
+      - /bigdisk/plex/:/data
+      - /bigdisk/plex/sonarr:/config
     ports:
       - 8989:8989/tcp
   radarr:
@@ -45,5 +45,5 @@ services:
       - UN_RADARR_0_PROTOCOLS=torrent,TorrentDownloadProtocol
       - UN_RADARR_0_DELETE_ORIG=false
     volumes:
-      - /media/plex:/data
+      - /bigdisk/plex:/data
       - /home/wbw/unpackerr:/config

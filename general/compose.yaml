@@ -1,7 +1,13 @@
 name: general
 
 include:
+  - homeassistant.yml
+  - zwavejsui.yml
+  - pihole.yml
   - nginx-proxy.yml
-  - self-update-server.yml
   - unifi.yml
   - wg-easy.yml
+  - tailscale.yml
+  - owntracks.yml
+  - mosquitto.yml
+  - job-digest.yml
