@@ -13,6 +13,14 @@ services:
       - /bigdisk/plex/sonarr:/config
     ports:
       - 8989:8989/tcp
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8989/ping >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
   radarr:
     image: linuxserver/radarr:4.4.4
     container_name: radarr
@@ -23,10 +31,71 @@ services:
       - PUID=1001
       - PGID=1001
     volumes:
-      - /media/plex/:/data
-      - /media/plex/radarr:/config
+      - /bigdisk/plex/:/data
+      - /bigdisk/plex/radarr:/config
     ports:
       - 7878:7878/tcp
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7878/ping >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+  whisparr:
+    image: ghcr.io/hotio/whisparr:nightly
+    container_name: whisparr
+    restart: unless-stopped
+    environment:
+      - PUID=1001
+      - PGID=1001
+      - UMASK=002
+      - TZ=America/Los_Angeles
+    volumes:
+      - /bigdisk/plex/:/data
+      - /bigdisk/plex/whisparr:/config
+    ports:
+      - 6969:6969/tcp
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:6969/ping >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
+  stash:
+    image: stashapp/stash:latest
+    container_name: stash
+    restart: unless-stopped
+    user: "1001:1001"
+    environment:
+      - TZ=America/Los_Angeles
+      - USER=media
+      - STASH_CONFIG_FILE=/config/config.yml
+      - STASH_STASH=/data/
+      - STASH_GENERATED=/generated/
+      - STASH_METADATA=/metadata/
+      - STASH_CACHE=/cache/
+      - STASH_PORT=9999
+    volumes:
+      - /bigdisk/plex/stash/config:/config
+      # Scan legacy collection torrents in place without risking qBittorrent's files.
+      - /bigdisk/plex/downloads/xxx-inbox:/data/inbox:ro
+      # Allow Stash to scan Whisparr downloads in place; keep qBittorrent files untouched.
+      - /bigdisk/plex/downloads/whisparr:/data/whisparr-downloads:ro
+      # Scan Whisparr's organized library without exposing other Plex media.
+      - /bigdisk/plex/xxx:/data/xxx:ro
+      - /bigdisk/plex/stash/metadata:/metadata
+      - /bigdisk/plex/stash/cache:/cache
+      - /bigdisk/plex/stash/generated:/generated
+    ports:
+      - 9999:9999/tcp
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:9999/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
   unpackerr:
     image: golift/unpackerr:latest
     container_name: unpackerr

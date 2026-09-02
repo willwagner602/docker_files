@@ -3,6 +3,14 @@ services:
     container_name: prowlarr
     image: ghcr.io/hotio/prowlarr
     restart: unless-stopped
+    labels:
+      - autoheal=true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9696/ping >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 90s
     ports:
       - "9696:9696"
     environment:
