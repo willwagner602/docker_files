@@ -41,7 +41,7 @@ services:
       - UNBOUND_NAMESERVERS #
     volumes:
       - /media/qbittorrent/config:/config
-      - /media/plex:/data
+      - /bigdisk/plex:/data
     cap_add:
       - NET_ADMIN
     sysctls:

@@ -3,6 +3,12 @@ services:
     image: linuxserver/plex
     container_name: plex
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:32400/identity >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     ports:
       - 32400:32400/tcp
       - 3005:3005/tcp
@@ -20,6 +26,6 @@ services:
       - PLEX_CLAIM=claim-nxB1xXcXiSxxmT76p_m_
       - TZ=America/Los_Angeles
     volumes:
-      - /media/plex/plex:/config
-      - /media/plex/tv:/tv
-      - /media/plex/movies:/movies
+      - /bigdisk/plex/plex:/config
+      - /bigdisk/plex/tv:/tv
+      - /bigdisk/plex/movies:/movies

@@ -40,7 +40,7 @@ services:
       - UNBOUND_NAMESERVERS #
     volumes:
       - /media/sabnzbd/config:/config
-      - /media/plex:/data
+      - /bigdisk/plex:/data
     cap_add:
       - NET_ADMIN
     sysctls:

@@ -6,6 +6,7 @@ include:
   - flaresolverr.yml
   - frigate.yml
   - health-notify.yml
+  - immich.yml
   - ombi.yml
   - photo-uploader.yml
   - plex.yml
