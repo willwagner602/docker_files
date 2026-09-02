@@ -40,7 +40,7 @@ services:
       - UNBOUND_ENABLED=false #
       - UNBOUND_NAMESERVERS #
     volumes:
-      - /media/qbittorrent/config:/config
+      - /bigdisk/qbittorrent/config:/config
       - /bigdisk/plex:/data
     cap_add:
       - NET_ADMIN

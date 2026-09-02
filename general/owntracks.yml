@@ -1,0 +1,16 @@
+services:
+  otrecorder:
+    image: owntracks/recorder
+    environment:
+      - OTR_HOST=mosquitto
+      - OTR_PORT=1883
+    ports:
+      - 8083:8083
+    volumes:
+      - otr-config:/config
+      - otr-store:/store
+    restart: unless-stopped
+
+volumes:
+  otr-config:
+  otr-store:

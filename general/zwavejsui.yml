@@ -1,0 +1,30 @@
+services:
+  zwavejsui:
+    container_name: zwave-js-ui
+    image: zwavejs/zwave-js-ui:latest
+    restart: always
+    tty: true
+    stop_signal: SIGINT
+    environment:
+      - SESSION_SECRET=mysupersecretkey
+      - TZ=America/Los_Angeles
+    networks:
+      - zwave
+    devices:
+      - /dev/serial/by-id/usb-0658_0200-if00:/dev/zwave
+      - /dev/ttyACM0:/dev/zwave1
+    volumes:
+      - zwave-config:/usr/src/app/store
+    ports:
+      - '8091:8091'
+      - '3000:3000'
+
+networks:
+  zwave:
+
+volumes:
+  zwave-config:
+    # Pre-existing volume created under the old "wbw" compose project name.
+    # Pinned explicitly so the rename to "general" doesn't strand the data.
+    name: wbw_zwave-config
+    external: true

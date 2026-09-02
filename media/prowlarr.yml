@@ -19,5 +19,5 @@ services:
       - UMASK=002
       - TZ=America/Los_Angeles
     volumes:
-      - /media/prowlarr/:/config
+      - /bigdisk/prowlarr/:/config
     hostname: container-name.internal #

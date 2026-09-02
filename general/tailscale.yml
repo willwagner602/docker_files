@@ -1,0 +1,26 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: home
+    environment:
+      - TS_HOSTNAME=home
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_USERSPACE=false
+      - TS_EXTRA_ARGS=--advertise-routes=10.0.0.0/24 --advertise-exit-node
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    network_mode: host
+    restart: unless-stopped
+
+volumes:
+  tailscale-state:
+    # Pre-existing volume created under the old "wbw" compose project name.
+    # Pinned explicitly so the rename to "general" doesn't strand the data.
+    name: wbw_tailscale-state
+    external: true

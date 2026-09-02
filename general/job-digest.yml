@@ -1,0 +1,18 @@
+services:
+  job-digest:
+    build:
+      context: /home/wbw/work/job-search-tooling
+      dockerfile: Dockerfile
+    container_name: job-digest
+    restart: unless-stopped
+    environment:
+      TZ: America/Los_Angeles
+      JOB_DIGEST_DIR: /app/.job_digest
+      JOB_DIGEST_SECRETS: /app/secrets.json
+      JOB_DIGEST_HOST: 0.0.0.0
+      JOB_DIGEST_PORT: "8765"
+    ports:
+      - "8765:8765"
+    volumes:
+      - /home/wbw/secrets.json:/app/secrets.json:ro
+      - /home/wbw/job-digest-state:/app/.job_digest

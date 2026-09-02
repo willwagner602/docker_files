@@ -39,7 +39,7 @@ services:
       - UNBOUND_ENABLED=false #
       - UNBOUND_NAMESERVERS #
     volumes:
-      - /media/sabnzbd/config:/config
+      - /bigdisk/sabnzbd/config:/config
       - /bigdisk/plex:/data
     cap_add:
       - NET_ADMIN
