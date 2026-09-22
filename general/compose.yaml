@@ -11,3 +11,4 @@ include:
   - owntracks.yml
   - mosquitto.yml
   - job-digest.yml
+  - sortie.yml

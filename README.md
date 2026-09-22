@@ -37,6 +37,7 @@ Docker Compose definitions for the services running on the home & media servers.
 | `owntracks.yml` | OwnTracks Recorder | Independent service with persistent state. |
 | `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
 | `job-digest.yml` | Job Digest | Independent locally built service. |
+| `sortie.yml` | Sortie + Codex CLI | Independent locally built agent orchestrator. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 
@@ -92,6 +93,7 @@ These files use host-specific bind mounts, device mappings, build contexts, and 
 
 1. Confirm that the referenced host paths and devices exist.
 2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, and the VPN variables used by SABnzbd and qBittorrent. Photo uploader additionally requires `PHOTO_UPLOADER_PHOTO_PATH`, operator credentials, a session secret, a Bluesky handle, and a Bluesky App Password; it stores its SQLite database in the named `photo-uploader-data` volume.
+   Sortie additionally requires `/home/wbw/sortie/WORKFLOW.md` and `CODEX_API_KEY` (plus the tracker variables referenced by that workflow).
 3. Review credentials and secrets before deployment. Some existing service definitions contain deployment-specific values and should be treated as sensitive.
 4. Ensure the required Docker networks and host permissions are available.
 

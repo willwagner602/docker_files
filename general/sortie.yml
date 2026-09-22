@@ -1,0 +1,26 @@
+services:
+  sortie:
+    build:
+      context: /home/wbw/work/sortie
+      dockerfile: Dockerfile
+    container_name: sortie
+    init: true
+    environment:
+      CODEX_API_KEY:
+      SORTIE_GITHUB_TOKEN:
+      SORTIE_GITHUB_PROJECT:
+      SORTIE_JIRA_API_KEY:
+      SORTIE_JIRA_ENDPOINT:
+      SORTIE_JIRA_PROJECT:
+    command: --db /home/sortie/data/sortie.db /home/sortie/config/WORKFLOW.md
+    ports:
+      - "7678:7678"
+    volumes:
+      - /home/wbw/sortie:/home/sortie/config:ro
+      - /home/wbw/sortie/workspaces:/home/sortie/workspaces
+      - sortie-data:/home/sortie/data
+    working_dir: /home/sortie
+    restart: unless-stopped
+
+volumes:
+  sortie-data:
