@@ -1,0 +1,17 @@
+services:
+  couchdb:
+    image: couchdb:3
+    container_name: couchdb
+    ports:
+      - "5984:5984"
+    environment:
+      COUCHDB_USER: ${COUCHDB_USER:?Set COUCHDB_USER in .env}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Set COUCHDB_PASSWORD in .env}
+    volumes:
+      - couchdb-data:/opt/couchdb/data
+      - couchdb-config:/opt/couchdb/etc/local.d
+    restart: unless-stopped
+
+volumes:
+  couchdb-data:
+  couchdb-config:
