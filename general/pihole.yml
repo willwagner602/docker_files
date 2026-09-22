@@ -9,7 +9,7 @@ services:
       - "20443:443/tcp"
     environment:
       TZ: 'America/Chicago'
-      FTLCONF_webserver_api_password: 'na5RNtPM'
+      FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD:?Set PIHOLE_WEBPASSWORD in .env}
       FTLCONF_dns_listeningMode: 'all'
     volumes:
       - /home/wbw/etc-pihole:/etc/pihole
