@@ -1,17 +1,26 @@
 services:
   couchdb:
-    image: couchdb:3
+    image: couchdb:3.5
     container_name: couchdb
     ports:
-      - "5984:5984"
+      - "127.0.0.1:5984:5984"
     environment:
       COUCHDB_USER: ${COUCHDB_USER:?Set COUCHDB_USER in .env}
       COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Set COUCHDB_PASSWORD in .env}
     volumes:
-      - couchdb-data:/opt/couchdb/data
-      - couchdb-config:/opt/couchdb/etc/local.d
+      - /home/wbw/couchdb/data:/opt/couchdb/data
+      - /home/wbw/couchdb/etc:/opt/couchdb/etc/local.d
+    networks:
+      - npm
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/5984 && printf ''GET /_up HTTP/1.0\r\nHost: localhost\r\n\r\n'' >&3 && grep -q ''200 OK'' <&3']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-volumes:
-  couchdb-data:
-  couchdb-config:
+networks:
+  npm:
+    name: npm
+    driver: bridge
