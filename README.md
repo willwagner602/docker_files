@@ -37,7 +37,7 @@ Docker Compose definitions for the services running on the home & media servers.
 | `owntracks.yml` | OwnTracks Recorder | Independent service with persistent state. |
 | `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
 | `job-digest.yml` | Job Digest | Independent locally built service. |
-| `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; on the shared `npm` Docker network behind Nginx Proxy Manager, with data bind-mounted under `/home/wbw/couchdb`. |
+| `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/home/wbw/couchdb`. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 
@@ -91,12 +91,24 @@ docker compose logs -f unifi
 
 These files use host-specific bind mounts, device mappings, build contexts, and environment variables. Before starting a service:
 
-1. Confirm that the referenced host paths and devices exist. The CouchDB directories under `/home/wbw/couchdb` must also be writable by UID 5984, the UID of the `couchdb` user inside the container.
+1. Confirm that the referenced host paths and devices exist. For CouchDB, create the bind-mount directories before the first start and give them to UID 5984, the `couchdb` user inside the container: `mkdir -p /home/wbw/couchdb/{data,etc} && chown -R 5984:5984 /home/wbw/couchdb`. Docker creates missing bind-mount sources as root-owned, which leaves CouchDB unable to write.
 2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, `COUCHDB_USER` and `COUCHDB_PASSWORD` for CouchDB, and the VPN variables used by SABnzbd and qBittorrent. Photo uploader additionally requires `PHOTO_UPLOADER_PHOTO_PATH`, operator credentials, a session secret, a Bluesky handle, and a Bluesky App Password; it stores its SQLite database in the named `photo-uploader-data` volume.
 3. Review credentials and secrets before deployment. Some existing service definitions contain deployment-specific values and should be treated as sensitive.
 4. Ensure the required Docker networks and host permissions are available.
 
 The Compose files do not create host directories or hardware devices automatically.
+
+## CouchDB backup and restore
+
+`/home/wbw/couchdb/data` is the authoritative state (databases and indexes); `/home/wbw/couchdb/etc` holds the `local.d` configuration, including the admin credential hash written on first start. Existing host backups of `/home/wbw` therefore cover CouchDB, with one consistency requirement: a copy taken while the container is running can capture a database mid-write. For a consistent copy, stop the service first:
+
+```sh
+cd general && docker compose stop couchdb
+# back up /home/wbw/couchdb with the existing host backup tooling
+docker compose start couchdb
+```
+
+To restore: stop the service, restore both directories, re-apply ownership (`chown -R 5984:5984 /home/wbw/couchdb`), and start the service again. Restore `data` and `etc` as a pair so the backup stays self-consistent.
 
 ## Validation
 
