@@ -36,7 +36,7 @@ Docker Compose definitions for the services running on the home & media servers.
 | `tailscale.yml` | Tailscale | Independent host-networked service. |
 | `owntracks.yml` | OwnTracks Recorder | Independent service with persistent state. |
 | `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
-| `job-digest.yml` | Job Digest | Independent locally built service. |
+| `job-digest.yml` | Job Digest | Independent service using the `ghcr.io/willwagner602/job-search-tooling` image; state persists in the `/home/wbw/job-digest-state` bind mount. |
 | `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/home/wbw/couchdb`. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
@@ -89,7 +89,7 @@ docker compose logs -f unifi
 
 ## Configuration and host prerequisites
 
-These files use host-specific bind mounts, device mappings, build contexts, and environment variables. Before starting a service:
+These files use host-specific bind mounts, device mappings, and environment variables. Before starting a service:
 
 1. Confirm that the referenced host paths and devices exist. For CouchDB, create the bind-mount directories before the first start and give them to UID 5984, the `couchdb` user inside the container: `mkdir -p /home/wbw/couchdb/{data,etc} && chown -R 5984:5984 /home/wbw/couchdb`. Docker creates missing bind-mount sources as root-owned, which leaves CouchDB unable to write.
 2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, `COUCHDB_USER` and `COUCHDB_PASSWORD` for CouchDB, and the VPN variables used by SABnzbd and qBittorrent. Photo uploader additionally requires `PHOTO_UPLOADER_PHOTO_PATH`, operator credentials, a session secret, a Bluesky handle, and a Bluesky App Password; it stores its SQLite database in the named `photo-uploader-data` volume.
