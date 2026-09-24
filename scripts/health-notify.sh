@@ -9,7 +9,10 @@ CERT_WARN_DAYS=${CERT_WARN_DAYS:-30}
 CERT_HOST=${CERT_HOST:-}
 UNPACKERR_LOG=${UNPACKERR_LOG:-/unpackerr/unpackerr.log}
 
-WATCH_CONTAINERS="plex ombi sonarr radarr prowlarr whisparr flaresolverr sabnzbd unpackerr qbittorrent frigate postgres autoheal stash immich-server immich-machine-learning immich-postgres immich-redis"
+ROLE=${ROLE:-media}
+# Containers to alert on: '*' (default) watches every container; or a
+# space-separated list of container names to restrict noise.
+WATCH_CONTAINERS=${WATCH_CONTAINERS:-*}
 
 mkdir -p "$STATE_DIR"
 
@@ -47,14 +50,30 @@ $logs"
   printf '%s' "$detail" | cut -c1-2000
 }
 
+is_watched() {
+  case "$WATCH_CONTAINERS" in
+    '*'|all) return 0 ;;
+  esac
+  case " $WATCH_CONTAINERS " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# docker events does not reconnect on its own; retry so a daemon restart
+# does not silently end event watching.
 watch_events() {
+  while :; do
+    handle_events
+    sleep 5
+  done
+}
+
+handle_events() {
   docker events --filter type=container \
     --format '{{.Action}}|{{.Actor.Attributes.name}}|{{.Actor.Attributes.exitCode}}|{{.Actor.Attributes.signal}}' |
   while IFS='|' read -r action name exit_code signal; do
-    case " $WATCH_CONTAINERS " in
-      *" $name "*) ;;
-      *) continue ;;
-    esac
+    is_watched "$name" || continue
 
     case "$action" in
       oom)
@@ -299,24 +318,26 @@ watch_events &
 EVENT_PID=$!
 trap 'kill "$EVENT_PID" 2>/dev/null || true' EXIT INT TERM
 
-echo "Monitoring Docker events, disk space, queues, Arr history, Unpackerr, HTTP services, and TLS."
+echo "Monitoring Docker events for all containers ($ROLE role${CERT_HOST:+, TLS for $CERT_HOST})."
 
 while :; do
-  check_disk
-  check_arr "Sonarr" "http://sonarr:8989" "${SONARR_API_KEY:-}" "arr.sonarr.last"
-  check_arr "Radarr" "http://radarr:7878" "${RADARR_API_KEY:-}" "arr.radarr.last"
-  check_unpackerr
-  check_http "Ombi" "http://ombi:3579/ombi/"
-  check_http "Plex" "http://plex:32400/identity"
-  check_http "Sonarr" "http://sonarr:8989/ping"
-  check_http "Radarr" "http://radarr:7878/ping"
-  check_http "Prowlarr" "http://prowlarr:9696/ping"
-  check_http "Whisparr" "http://whisparr:6969/ping"
-  check_http "FlareSolverr" "http://flaresolverr:8191/"
-  check_http "Stash" "http://stash:9999/"
-  check_http "Frigate" "http://frigate:5000/api/version"
-  check_http "Immich" "http://immich-server:2283/api/server/ping"
-  check_http "ImmichML" "http://immich-machine-learning:3003/ping"
+  if [ "$ROLE" = media ]; then
+    check_disk
+    check_arr "Sonarr" "http://sonarr:8989" "${SONARR_API_KEY:-}" "arr.sonarr.last"
+    check_arr "Radarr" "http://radarr:7878" "${RADARR_API_KEY:-}" "arr.radarr.last"
+    check_unpackerr
+    check_http "Ombi" "http://ombi:3579/ombi/"
+    check_http "Plex" "http://plex:32400/identity"
+    check_http "Sonarr" "http://sonarr:8989/ping"
+    check_http "Radarr" "http://radarr:7878/ping"
+    check_http "Prowlarr" "http://prowlarr:9696/ping"
+    check_http "Whisparr" "http://whisparr:6969/ping"
+    check_http "FlareSolverr" "http://flaresolverr:8191/"
+    check_http "Stash" "http://stash:9999/"
+    check_http "Frigate" "http://frigate:5000/api/version"
+    check_http "Immich" "http://immich-server:2283/api/server/ping"
+    check_http "ImmichML" "http://immich-machine-learning:3003/ping"
+  fi
   check_certificate
   sleep "$POLL_INTERVAL"
 done

@@ -17,7 +17,7 @@ Docker Compose definitions for the services running on the home & media servers.
 | `qbittorrent.yml` | qBittorrent | Independent download service. |
 | `postgres.yml` | PostgreSQL | Separate database service. |
 | `autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
-| `health-notify.yml` | Health notifier | Watches Docker/container state through the Docker socket. |
+| `health-notify.yml` | Health notifier | Watches all containers through the Docker socket; the media role adds disk, queue, Arr, and HTTP checks. |
 | `frigate.yml` | Frigate | Independent NVR service. |
 | `photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
 
@@ -38,6 +38,7 @@ Docker Compose definitions for the services running on the home & media servers.
 | `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
 | `job-digest.yml` | Job Digest | Independent service using the `ghcr.io/willwagner602/job-search-tooling` image; state persists in the `/home/wbw/job-digest-state` bind mount. |
 | `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/home/wbw/couchdb`. |
+| `health-notify.yml` | Health notifier | Watches all containers through the Docker socket; the general role skips media-only checks and monitors the `willwagner.me` certificate. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 
