@@ -1,0 +1,18 @@
+services:
+  health-notify:
+    image: docker:cli
+    container_name: health-notify
+    restart: unless-stopped
+    command: sh -c "apk add --no-cache ca-certificates curl jq openssl >/dev/null && sh /notify.sh"
+    environment:
+      - ROLE=general
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:?Set TELEGRAM_CHAT_ID in .env}
+      - STATE_DIR=/state
+      - POLL_INTERVAL=60
+      - CERT_HOST=willwagner.me
+      - CERT_WARN_DAYS=30
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../scripts/health-notify.sh:/notify.sh:ro
+      - /home/wbw/health-notify:/state
