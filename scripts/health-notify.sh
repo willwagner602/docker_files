@@ -33,6 +33,20 @@ safe_name() {
   printf '%s' "$1" | tr -c 'A-Za-z0-9_.-' '_'
 }
 
+health_detail() {
+  name=$1
+  probe=$(docker inspect "$name" --format '{{json .State.Health.Log}}' 2>/dev/null |
+    jq -r '.[-1] | "exit=\(.ExitCode), output=\(.Output // "(no output)")"' 2>/dev/null || true)
+  logs=$(docker logs --tail 15 "$name" 2>&1 | tr -d '\r' | tail -c 800 || true)
+  detail="Health check: ${probe:-no health-check output recorded}"
+  if [ -n "$logs" ]; then
+    detail="$detail
+Last logs:
+$logs"
+  fi
+  printf '%s' "$detail" | cut -c1-2000
+}
+
 watch_events() {
   docker events --filter type=container \
     --format '{{.Action}}|{{.Actor.Attributes.name}}|{{.Actor.Attributes.exitCode}}|{{.Actor.Attributes.signal}}' |
@@ -63,7 +77,8 @@ watch_events() {
         status=$(printf '%s' "$action" | sed 's/^health_status: *//')
         previous=$(read_state "health.$name")
         if [ "$status" = "unhealthy" ] && [ "$previous" != "unhealthy" ]; then
-          send "⚠️ $name is unhealthy. This may indicate VPN or service connectivity trouble."
+          send "⚠️ $name is unhealthy.
+$(health_detail "$name")"
         elif [ "$status" = "healthy" ] && [ "$previous" = "unhealthy" ]; then
           send "✅ $name is healthy again."
         fi
