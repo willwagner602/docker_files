@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Shell logic tests for scripts/health-notify.sh.
+  #
+  # The suite runs the real script's functions against stubbed curl/df/docker/
+  # openssl, so it needs no Docker daemon, no network, and no secrets.
+  # ---------------------------------------------------------------------------
+  shell-tests:
+    name: shell tests (health-notify.sh)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run health-notify.sh test suite
+        run: sh scripts/tests/health-notify/tests.sh
+
+  # ---------------------------------------------------------------------------
+  # 2. Compose validation for both stacks.
+  #
+  # `docker compose config` is a strict interpolation + structure check: it
+  # fails on a missing required `${VAR:?...}` variable, a broken `include:`
+  # path, or a malformed file. The required variables are supplied below so a
+  # fresh checkout (which has no untracked .env) can be validated.
+  #
+  # These are throwaway placeholder values used only for interpolation; nothing
+  # is started or pulled. If you add a new required `${VAR:?...}` to either
+  # stack, add it here too and CI will stay green.
+  # ---------------------------------------------------------------------------
+  compose-validate:
+    name: compose validation (${{ matrix.stack }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [general, media]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate ${{ matrix.stack }} stack
+        working-directory: ${{ matrix.stack }}
+        env:
+          # --- general stack ---
+          TELEGRAM_BOT_TOKEN: ci-placeholder
+          TELEGRAM_CHAT_ID: ci-placeholder
+          COUCHDB_USER: ci-placeholder
+          COUCHDB_PASSWORD: ci-placeholder
+          # --- media stack (immich) ---
+          IMMICH_VERSION: ci-placeholder
+          IMMICH_DB_PASSWORD: ci-placeholder
+          # --- media stack (photo-uploader) ---
+          PHOTO_UPLOADER_OPERATOR_USERNAME: ci-placeholder
+          PHOTO_UPLOADER_OPERATOR_PASSWORD: ci-placeholder
+          PHOTO_UPLOADER_SESSION_SECRET: ci-placeholder
+          PHOTO_UPLOADER_BSKY_HANDLE: ci-placeholder
+          PHOTO_UPLOADER_BSKY_APP_PASSWORD: ci-placeholder
+          PHOTO_UPLOADER_PHOTO_PATH: /ci-placeholder/photos
+          # --- media stack (postgres / download clients) ---
+          POSTGRES_PASSWORD: ci-placeholder
+          PIA_USER: ci-placeholder
+          PIA_PASS: ci-placeholder
+        run: |
+          set -eu
+          # Use the example file if present so local conventions stay in sync,
+          # but rely on the env block above as the source of truth.
+          if [ -f .env.example ]; then
+            cp .env.example .env
+            echo "seeded .env from .env.example"
+          fi
+          docker compose version
+          docker compose config -q
+          echo "OK: ${{ matrix.stack }} validates"

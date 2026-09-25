@@ -28,18 +28,27 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     expose:
       - "2375"
-    security_opt:
-      - no-new-privileges:true
+    # NOTE: deliberately no `no-new-privileges`. The image entrypoint needs
+    # setuid/setgid, and NNP turns that into "exec /docker-entrypoint.sh:
+    # operation not permitted", crash-looping the proxy. Verified against this
+    # pinned digest with a 4-way `docker run` matrix: `cap_drop: ALL` alone ->
+    # running; adding NNP -> exit 255 (still exit 255 with CAP_SETUID/CAP_SETGID
+    # added back). A dead proxy means the notifier cannot resolve its DNS alias
+    # and every Docker API call silently returns 000 while still logging
+    # "Monitoring ...".
     cap_drop:
       - ALL
 
   health-notify:
     image: docker:cli
-    container_name: health-notify
+    container_name: health-notify-general
     restart: unless-stopped
     depends_on:
       - docker-socket-proxy
-    command: sh -c "apk add --no-cache ca-certificates curl jq openssl >/dev/null && sh /notify.sh"
+    # `exec` so the script replaces the wrapper shell and becomes PID 1. With a
+    # plain `sh /notify.sh`, sh -c stays PID 1, has no TERM handler, and the
+    # script never sees the signal.
+    command: sh -c "apk add --no-cache ca-certificates curl jq openssl >/dev/null && exec sh /notify.sh"
     environment:
       - DOCKER_HOST=tcp://docker-socket-proxy:2375
       - ROLE=general
@@ -51,4 +60,4 @@ services:
       - CERT_WARN_DAYS=30
     volumes:
       - ../scripts/health-notify.sh:/notify.sh:ro
-      - /home/wbw/health-notify:/state
+      - /home/wbw/health-notify/general:/state
