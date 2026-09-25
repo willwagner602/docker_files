@@ -60,6 +60,25 @@ is_watched() {
   esac
 }
 
+# Report already-unhealthy running containers once at startup. Stopped
+# containers may be intentional; subsequent die events cover new stops.
+reconcile_health() {
+  docker ps --filter status=running --format '{{.Names}}' 2>/dev/null |
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    is_watched "$name" || continue
+    status=$(docker inspect "$name" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' 2>/dev/null || true)
+    if [ "$status" = unhealthy ]; then
+      previous=$(read_state "health.$name")
+      if [ "$previous" != unhealthy ]; then
+        send "⚠️ $name is unhealthy.
+$(health_detail "$name")"
+      fi
+      write_state "health.$name" "unhealthy"
+    fi
+  done
+}
+
 # docker events does not reconnect on its own; retry so a daemon restart
 # does not silently end event watching.
 watch_events() {
@@ -314,6 +333,7 @@ check_certificate() {
   rm -f "$cert_file"
 }
 
+reconcile_health
 watch_events &
 EVENT_PID=$!
 trap 'kill "$EVENT_PID" 2>/dev/null || true' EXIT INT TERM
