@@ -1,10 +1,47 @@
 services:
+  docker-socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy@sha256:69c389630d3e01222be5f782457a8c2e9b5e55638afad349a26ac027a2ecb2ff
+    restart: unless-stopped
+    environment:
+      - EVENTS=1
+      - CONTAINERS=1
+      - ALLOW_LOGS=1
+      - POST=0
+      - AUTH=0
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=0
+      - INFO=0
+      - NETWORKS=0
+      - NODES=0
+      - PLUGINS=0
+      - SECRETS=0
+      - SERVICES=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VOLUMES=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
   health-notify:
     image: docker:cli
     container_name: health-notify
     restart: unless-stopped
+    depends_on:
+      - docker-socket-proxy
     command: sh -c "apk add --no-cache ca-certificates curl jq openssl >/dev/null && sh /notify.sh"
     environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
       - ROLE=general
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:?Set TELEGRAM_CHAT_ID in .env}
@@ -13,6 +50,5 @@ services:
       - CERT_HOST=willwagner.me
       - CERT_WARN_DAYS=30
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
       - ../scripts/health-notify.sh:/notify.sh:ro
       - /home/wbw/health-notify:/state
