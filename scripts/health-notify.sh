@@ -336,7 +336,11 @@ check_certificate() {
 reconcile_health
 watch_events &
 EVENT_PID=$!
-trap 'kill "$EVENT_PID" 2>/dev/null || true' EXIT INT TERM
+# On a signal, reap the watcher AND exit. Without the explicit exit the handler
+# returns and the main loop resumes, so the script ignores TERM and Docker is
+# forced to SIGKILL after the whole grace period (measured ~10s, exit 137).
+# The first `trap -` keeps the EXIT trap from re-entering this handler.
+trap 'trap - EXIT INT TERM; kill "$EVENT_PID" 2>/dev/null || true; exit 0' EXIT INT TERM
 
 echo "Monitoring Docker events for all containers ($ROLE role${CERT_HOST:+, TLS for $CERT_HOST})."
 

@@ -1,0 +1,43 @@
+#!/bin/sh
+# Stub docker for health-notify.sh logic testing. No real daemon contact.
+# Env: STUB_PS (names for `ps`), STUB_EVENTS (lines for `events`),
+#      STUB_EVENTS_BLOCK=1 to emulate a live stream that never ends.
+case "$1" in
+  ps)
+    printf '%s\n' "${STUB_PS:-}"
+    ;;
+  logs)
+    printf 'stub log line for %s\n' "$4"
+    ;;
+  inspect)
+    name=$2
+    fmt="$*"
+    case "$fmt" in
+      *Health.Log*)
+        printf '[{"ExitCode":1,"Output":"stub health probe failed\\n"}]'
+        ;;
+      *Health.Status*)
+        case "$name" in
+          db) printf 'unhealthy' ;;
+          *) printf '' ;;
+        esac
+        ;;
+    esac
+    ;;
+  exec)
+    # `docker exec <container> <cmd...>` -> run <cmd...> so that
+    # check_qbit's `docker exec qbittorrent curl ...` reaches the curl stub.
+    shift 2
+    "$@"
+    ;;
+  events)
+    if [ -n "${STUB_EVENTS_BLOCK:-}" ]; then
+      tail -f /dev/null
+    else
+      printf '%s\n' "${STUB_EVENTS:-}"
+    fi
+    ;;
+  *)
+    : ;;
+esac
+exit 0

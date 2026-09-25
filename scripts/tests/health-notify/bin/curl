@@ -1,0 +1,38 @@
+#!/bin/sh
+# Stub curl for health-notify.sh logic testing.
+#
+# Two modes:
+#   * Telegram send (URL contains api.telegram.org) -> append "SEND|<text>" to
+#     $CURL_LOG and succeed. Tests assert on these records.
+#   * Data fetch (anything else) -> emit $STUB_HTTP_BODY on stdout and exit 0,
+#     or exit 22 (curl -f failure) when $STUB_HTTP_FAIL=1 or when the URL
+#     matches $STUB_FAIL_MATCH.
+set -u
+
+is_tg=0
+url=""
+text=""
+for a in "$@"; do
+  case "$a" in
+    *api.telegram.org*) is_tg=1; url=$a ;;
+    http://*|https://*) url=$a ;;
+    text=*) text=${a#text=} ;;
+  esac
+done
+
+if [ "$is_tg" = 1 ]; then
+  # Collapse newlines so each alert is exactly one greppable log record.
+  printf 'SEND|%s\n' "$(printf '%s' "$text" | tr '\n' '~')" >> "${CURL_LOG:-/dev/null}"
+  exit 0
+fi
+
+if [ "${STUB_HTTP_FAIL:-0}" = 1 ]; then
+  exit 22
+fi
+if [ -n "${STUB_FAIL_MATCH:-}" ]; then
+  case "$url" in
+    *"$STUB_FAIL_MATCH"*) exit 22 ;;
+  esac
+fi
+[ -n "${STUB_HTTP_BODY:-}" ] && printf '%s' "$STUB_HTTP_BODY"
+exit 0

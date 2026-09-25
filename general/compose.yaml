@@ -12,4 +12,4 @@ include:
   - mosquitto.yml
   - job-digest.yml
   - couchdb.yml
-  - health-notify.yml
+  - health-notify-general.yml
