@@ -350,6 +350,11 @@ while :; do
     check_arr "Sonarr" "http://sonarr:8989" "${SONARR_API_KEY:-}" "arr.sonarr.last"
     check_arr "Radarr" "http://radarr:7878" "${RADARR_API_KEY:-}" "arr.radarr.last"
     check_unpackerr
+    # Download-client stall detection. Both target services exist in the media
+    # stack (qbittorrent container_name, sabnzbd:9090); check_sab self-disables
+    # when SAB_API_KEY is unset.
+    check_qbit
+    check_sab
     check_http "Ombi" "http://ombi:3579/ombi/"
     check_http "Plex" "http://plex:32400/identity"
     check_http "Sonarr" "http://sonarr:8989/ping"

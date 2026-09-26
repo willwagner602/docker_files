@@ -80,12 +80,27 @@ run_body() {
 }
 
 # ===========================================================================
-echo "### A. static: dead code inventory"
+echo "### A. static: stall-check wiring"
+# These two were once dead code (defined, never called). They are wired into the
+# ROLE=media branch of the main loop; keep them that way. Each must have exactly
+# one call site, it must be inside the `[ "$ROLE" = media ]` block, and it must
+# be a bare call -- not a comment or a string.
 new_case static
 for fn in check_qbit check_sab; do
-  sites=$(grep -nE "(^|[^a-z_])$fn([^a-z_]|$)" "$SCRIPT" | grep -vE "^[0-9]+:$fn\(\)" | grep -vE "^\s*#" | wc -l)
+  # Call sites: the bare name appearing on its own as a statement.
+  sites=$(grep -nE "^\s*$fn\s*$" "$SCRIPT" | wc -l)
   n=$(printf '%s' "$sites" | tr -d ' ')
-  assert "$fn has NO call site outside its own definition (found $n)" "$([ "$n" = 0 ] && echo 0 || echo 1)"
+  assert "$fn has exactly one call site (found $n)" "$([ "$n" = 1 ] && echo 0 || echo 1)"
+
+  # It must sit between the media-role guard and its closing `fi`.
+  line=$(grep -nE "^\s*$fn\s*$" "$SCRIPT" | head -1 | cut -d: -f1)
+  if [ -n "$line" ]; then
+    guard=$(awk -v stop="$line" \
+      '/\[ "\$ROLE" = media \]/{g=NR} NR==stop{print (g ? 1 : 0); exit}' "$SCRIPT")
+    assert "$fn call site is inside the ROLE=media branch" "$([ "${guard:-0}" = 1 ] && echo 0 || echo 1)"
+  else
+    bad "$fn call site is inside the ROLE=media branch (no call site found)"
+  fi
 done
 
 # ===========================================================================
@@ -254,6 +269,77 @@ new_case unpackerr
 run_body 'check_unpackerr'
 assert "missing log file is a silent no-op" "$([ "$(sends)" = 0 ] && echo 0 || echo 1)"
 assert "no fingerprint written when file absent" "$([ ! -f "$STATE_DIR/unpackerr.fingerprint" ] && echo 0 || echo 1)"
+
+# ===========================================================================
+echo
+echo "### J. TERM handling: prompt shutdown (timing-sensitive)"
+# Regression guard for the `docker stop` latency fix.
+#
+# The defect: the signal trap killed the watch_events child but did not exit, so
+# the main `while :` loop resumed and the container ignored TERM until Docker
+# gave up and SIGKILLed it (measured ~10s, exit 137). The fix adds `exit 0` to
+# the handler and runs the script under `exec` so the shell receiving TERM is
+# the script itself.
+#
+# Unlike every other case here, this one cannot use the extracted lib: it needs
+# a real long-lived process to signal. We run the real script with stub binaries
+# on PATH so its polling loop is cheap, TERM it, and measure how long it takes
+# to die.
+#
+# Timing budget: the loop sleeps POLL_INTERVAL=1, so a correct exit lands well
+# under ~2s. The failing behaviour was bounded by Docker's 10s grace period. Any
+# exit under TERM_DEADLINE is a pass; using a deadline far above the observed
+# good case keeps this robust on loaded CI runners while still failing hard if
+# the trap regresses to "ignore TERM".
+new_case term
+TERM_DEADLINE=5      # seconds; correct fix exits in <2s, regression runs to ~10s
+
+# Minimal stubs for everything the script touches at startup. The real polling
+# loop calls these; we do not care about their output here, only that the
+# process stays alive until we signal it.
+stub_bin="$WORK/term-bin"; mkdir -p "$stub_bin"
+for b in docker df openssl; do
+  printf '#!/bin/sh\nexit 0\n' > "$stub_bin/$b"; chmod +x "$stub_bin/$b"
+done
+printf '#!/bin/sh\nexit 0\n' > "$stub_bin/curl"; chmod +x "$stub_bin/curl"
+
+# Run the production script's REAL main body (not the extracted lib) so the trap
+# under test is the production trap. State goes to the case dir; ROLE=general
+# keeps the loop short, and CERT_HOST unset keeps openssl out of the path.
+(
+  set -eu
+  PATH="$stub_bin:$PATH"
+  STATE_DIR="$STATE" ROLE=general POLL_INTERVAL=1 \
+  TELEGRAM_BOT_TOKEN=stub-token TELEGRAM_CHAT_ID=stub-chat \
+  exec sh "$SCRIPT"
+) >"$WORK/term.out" 2>&1 &
+child=$!
+
+# Let it reach the main loop before signalling.
+sleep 1
+start=$(date +%s)
+kill -TERM "$child" 2>/dev/null || true
+
+# Poll for exit, bounded by the deadline.
+exited=0
+while [ $(( $(date +%s) - start )) -lt "$TERM_DEADLINE" ]; do
+  if ! kill -0 "$child" 2>/dev/null; then exited=1; break; fi
+  sleep 0.1
+done
+elapsed=$(( $(date +%s) - start ))
+
+if [ "$exited" = 1 ]; then
+  # Reap so we get the true exit status (rather than signalling a zombie).
+  wait "$child" 2>/dev/null; rc=$?
+  assert "script exits on TERM within ${TERM_DEADLINE}s (took ~${elapsed}s)" \
+    "$([ "$elapsed" -lt "$TERM_DEADLINE" ] && echo 0 || echo 1)"
+  assert "exit status is 0 (clean shutdown, not SIGKILL)" \
+    "$([ "$rc" = 0 ] && echo 0 || echo 1)"
+else
+  kill -KILL "$child" 2>/dev/null || true
+  bad "script exits on TERM within ${TERM_DEADLINE}s (still alive after ${elapsed}s -> trap ignored TERM)"
+  bad "exit status is 0 (never exited)"
+fi
 
 # ===========================================================================
 echo
