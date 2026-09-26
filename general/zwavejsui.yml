@@ -6,7 +6,7 @@ services:
     tty: true
     stop_signal: SIGINT
     environment:
-      - SESSION_SECRET=mysupersecretkey
+      - SESSION_SECRET=${ZWAVE_SESSION_SECRET:?Set ZWAVE_SESSION_SECRET in .env}
       - TZ=America/Los_Angeles
     networks:
       - zwave
