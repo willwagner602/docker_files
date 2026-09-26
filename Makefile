@@ -3,6 +3,7 @@
 #   make test       run the shell test suite for scripts/health-notify.sh
 #   make validate   strict-interpolate both compose stacks (as CI does)
 #   make check      both of the above
+#   make hooks      install the pre-push hook into .git/hooks (once per clone)
 #
 # `validate` mirrors what CI runs: it copies each stack's .env.example to .env
 # so the required `${VAR:?...}` variables are satisfied, then runs
@@ -12,13 +13,14 @@
 SHELL := /bin/sh
 STACKS := general media
 
-.PHONY: check test validate help
+.PHONY: check test validate hooks help
 
 help:
 	@echo "Targets:"
 	@echo "  make test      Run the health-notify.sh shell test suite"
 	@echo "  make validate  Strict-interpolate the compose stacks (general, media)"
 	@echo "  make check     test + validate (what CI runs)"
+	@echo "  make hooks     Install the pre-push hook into .git/hooks"
 
 test:
 	@sh scripts/tests/health-notify/tests.sh
@@ -40,3 +42,23 @@ validate:
 	printf '\nAll compose stacks validated.\n'
 
 check: test validate
+
+# Install the pre-push hook. .git/hooks is not tracked by git, so this has to be
+# run once per clone. See scripts/hooks/pre-push for what it does and why it
+# exists (main has no server-side required status checks — see that file).
+hooks:
+	@set -eu; \
+	hooks_dir=$$(git rev-parse --git-path hooks); \
+	mkdir -p "$$hooks_dir"; \
+	if [ -e "$$hooks_dir/pre-push" ] && [ ! -L "$$hooks_dir/pre-push" ]; then \
+	  case "$$(readlink "$$hooks_dir/pre-push" 2>/dev/null || echo)" in \
+	    *scripts/hooks/pre-push) ;; \
+	    *) echo "  WARN  $$hooks_dir/pre-push already exists and is not ours; backing up"; \
+	       mv "$$hooks_dir/pre-push" "$$hooks_dir/pre-push.bak.$$$$" ;; \
+	  esac; \
+	fi; \
+	ln -sf "$$(cd "$$(dirname "$$hooks_dir")/.." && pwd)/scripts/hooks/pre-push" "$$hooks_dir/pre-push" 2>/dev/null || \
+	  { cp scripts/hooks/pre-push "$$hooks_dir/pre-push"; chmod +x "$$hooks_dir/pre-push"; }; \
+	chmod +x scripts/hooks/pre-push; \
+	printf '  OK  installed %s/pre-push -> scripts/hooks/pre-push\n' "$$hooks_dir"; \
+	printf '      (bypass a single push with: git push --no-verify)\n'

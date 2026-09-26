@@ -1,0 +1,66 @@
+#!/bin/sh
+# pre-push hook — run the same checks CI runs, before the push leaves the box.
+#
+# WHY THIS EXISTS
+#   This repository's `main` branch is NOT protected by required status checks.
+#   GitHub only offers branch protection and rulesets on private repos to
+#   GitHub Pro subscribers; on this repo every attempt returns:
+#
+#       403 "Upgrade to GitHub Pro or make this repository public to enable
+#            this feature."
+#
+#   So CI cannot be made mandatory server-side. This hook is the local
+#   substitute: it runs `make check` (the shell test suite plus strict compose
+#   interpolation of both stacks) and refuses the push if either fails.
+#
+#   It is a backstop, not a gate — `git push --no-verify` bypasses it, and it
+#   only protects pushes made from a machine with the hook installed. CI still
+#   runs on the remote; this just means you find out before you push rather
+#   than after.
+#
+# INSTALL
+#   make hooks        # installs into .git/hooks/pre-push (not tracked by git)
+#
+#   Run `make hooks` once per clone. .git/hooks is not version controlled, so
+#   the hook cannot install itself.
+
+set -eu
+
+# Resolve the repo root so the hook works regardless of where it is invoked
+# from. git runs hooks with CWD set to the top level for pre-push, but be
+# explicit rather than relying on it.
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root"
+
+if [ ! -f Makefile ]; then
+  echo "pre-push: no Makefile at $repo_root — skipping checks." >&2
+  exit 0
+fi
+
+# Allow a deliberate bypass without editing the file. Use sparingly.
+if [ "${SKIP_PREPUSH:-}" = "1" ]; then
+  echo "pre-push: SKIP_PREPUSH=1 set — skipping checks." >&2
+  exit 0
+fi
+
+# Docker is required for the compose-validation half of `make check`. If it is
+# unavailable (not installed, daemon down, no socket permission) then `make
+# check` would fail for environmental reasons rather than code reasons. Warn and
+# skip rather than block a push on a machine that simply cannot run docker.
+if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+  echo "pre-push: docker unavailable — running shell tests only." >&2
+  echo "          (compose validation skipped; CI will still run it.)" >&2
+  exec make test
+fi
+
+echo "pre-push: running 'make check' (shell tests + compose validation)..." >&2
+if ! make check; then
+  echo "" >&2
+  echo "pre-push: CHECK FAILED — push aborted." >&2
+  echo "          Fix the failure above, or push with 'git push --no-verify'" >&2
+  echo "          to bypass (CI will still report it on the remote)." >&2
+  exit 1
+fi
+
+echo "pre-push: all checks passed." >&2
+exit 0
