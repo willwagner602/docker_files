@@ -23,7 +23,9 @@ services:
       - PUID=1001
       - PGID=1001
       - VERSION=docker
-      - PLEX_CLAIM=claim-nxB1xXcXiSxxmT76p_m_
+      # Claim token from https://plex.tv/claim — expires ~4 minutes after issue,
+      # so set it in media/.env immediately before the first `up` and then clear it.
+      - PLEX_CLAIM=${PLEX_CLAIM:?Set PLEX_CLAIM in .env from https://plex.tv/claim}
       - TZ=America/Los_Angeles
     volumes:
       - /bigdisk/plex/plex:/config

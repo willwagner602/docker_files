@@ -69,6 +69,8 @@ jobs:
           PHOTO_UPLOADER_BSKY_HANDLE: ci-placeholder
           PHOTO_UPLOADER_BSKY_APP_PASSWORD: ci-placeholder
           PHOTO_UPLOADER_PHOTO_PATH: /ci-placeholder/photos
+          # --- media stack (plex) ---
+          PLEX_CLAIM: ci-placeholder
           # --- media stack (postgres / download clients) ---
           POSTGRES_PASSWORD: ci-placeholder
           PIA_USER: ci-placeholder
