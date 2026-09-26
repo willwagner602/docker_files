@@ -1,8 +1,7 @@
 services:
   job-digest:
-    build:
-      context: /home/wbw/work/job-search-tooling
-      dockerfile: Dockerfile
+    image: ghcr.io/willwagner602/job-search-tooling:latest
+    pull_policy: always
     container_name: job-digest
     restart: unless-stopped
     environment:

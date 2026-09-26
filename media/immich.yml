@@ -1,0 +1,67 @@
+services:
+  immich-server:
+    image: ghcr.io/immich-app/immich-server:${IMMICH_VERSION:?set IMMICH_VERSION in .env}
+    container_name: immich-server
+    restart: unless-stopped
+    ports:
+      - "${IMMICH_PORT:-2283}:2283"
+    environment:
+      - TZ=America/Los_Angeles
+      - DB_HOSTNAME=immich-postgres
+      - DB_USERNAME=${IMMICH_DB_USERNAME:-immich}
+      - DB_PASSWORD=${IMMICH_DB_PASSWORD:?set a strong Immich DB password in .env}
+      - DB_DATABASE_NAME=${IMMICH_DB_DATABASE_NAME:-immich}
+      - REDIS_HOSTNAME=immich-redis
+    volumes:
+      - ${IMMICH_UPLOAD_LOCATION:-/bigdisk/immich/library}:/data
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      immich-redis:
+        condition: service_healthy
+      immich-postgres:
+        condition: service_healthy
+    # No autoheal label: Immich's first-boot and post-upgrade DB migrations run
+    # longer than the image healthcheck's grace period, so the container goes
+    # "unhealthy" mid-migration. autoheal would then SIGTERM it into a restart
+    # loop (and risk interrupting a migration). `restart: unless-stopped` plus the
+    # image's own healthcheck are sufficient here.
+    healthcheck:
+      test: ["CMD-SHELL", "immich-healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15m
+
+  immich-machine-learning:
+    image: ghcr.io/immich-app/immich-machine-learning:${IMMICH_VERSION:?set IMMICH_VERSION in .env}
+    container_name: immich-machine-learning
+    restart: unless-stopped
+    environment:
+      - TZ=America/Los_Angeles
+    volumes:
+      - /bigdisk/immich/model-cache:/cache
+    healthcheck:
+      disable: false
+
+  immich-redis:
+    image: docker.io/valkey/valkey:9@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+    container_name: immich-redis
+    restart: unless-stopped
+    healthcheck:
+      test: redis-cli ping || exit 1
+
+  immich-postgres:
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    container_name: immich-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${IMMICH_DB_USERNAME:-immich}
+      - POSTGRES_PASSWORD=${IMMICH_DB_PASSWORD:?set a strong Immich DB password in .env}
+      - POSTGRES_DB=${IMMICH_DB_DATABASE_NAME:-immich}
+      - POSTGRES_INITDB_ARGS=--data-checksums
+      - DB_STORAGE_TYPE=HDD
+    volumes:
+      - ${IMMICH_DB_DATA_LOCATION:-/bigdisk/immich/postgres}:/var/lib/postgresql/data
+    shm_size: 128mb
+    healthcheck:
+      disable: false

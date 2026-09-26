@@ -1,0 +1,24 @@
+services:
+  couchdb:
+    image: couchdb:3.5
+    container_name: couchdb
+    environment:
+      COUCHDB_USER: ${COUCHDB_USER:?Set COUCHDB_USER in .env}
+      COUCHDB_PASSWORD: ${COUCHDB_PASSWORD:?Set COUCHDB_PASSWORD in .env}
+    volumes:
+      - /home/wbw/couchdb/data:/opt/couchdb/data
+      - /home/wbw/couchdb/etc:/opt/couchdb/etc/local.d
+    networks:
+      - couchdb-net
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'bash', '-c', 'exec 3<>/dev/tcp/127.0.0.1/5984 && printf ''GET /_up HTTP/1.0\r\nHost: localhost\r\n\r\n'' >&3 && grep -q ''200 OK'' <&3']
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  couchdb-net:
+    name: couchdb-net
+    driver: bridge

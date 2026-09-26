@@ -11,9 +11,13 @@ services:
       - /home/wbw/letsencrypt:/etc/letsencrypt
     networks:
       - npm
+      - couchdb-net
 
 
 networks:
   npm:
     name: npm
+    driver: bridge
+  couchdb-net:
+    name: couchdb-net
     driver: bridge

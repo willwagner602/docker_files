@@ -1,0 +1,32 @@
+#!/bin/sh
+# Stub openssl. Simulates TLS handshake + cert inspection without network.
+# SCLIENT_RC: 0 = handshake ok, nonzero = unreachable.
+# CHECKEND_RC: 0 = far from expiry, 1 = within warn window.
+case "$1" in
+  s_client)
+    exit "${SCLIENT_RC:-0}"
+    ;;
+  x509)
+    out=""
+    prev=""
+    for a in "$@"; do
+      if [ "$prev" = "-out" ]; then out="$a"; fi
+      prev="$a"
+    done
+    if [ -n "$out" ]; then
+      # Second stage of the pipeline: fail if the handshake failed, so the
+      # whole pipeline status reflects reachability (no pipefail in POSIX sh).
+      [ "${SCLIENT_RC:-0}" = "0" ] || exit 1
+      printf -- '-----BEGIN CERTIFICATE-----\nSTUB\n-----END CERTIFICATE-----\n' > "$out"
+      exit 0
+    fi
+    for a in "$@"; do
+      case "$a" in
+        -enddate) printf 'notAfter=Jan  1 00:00:00 2030 GMT\n'; exit 0 ;;
+        -checkend) exit "${CHECKEND_RC:-0}" ;;
+      esac
+    done
+    exit 0
+    ;;
+esac
+exit 0
