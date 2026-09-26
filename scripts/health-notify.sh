@@ -9,7 +9,10 @@ CERT_WARN_DAYS=${CERT_WARN_DAYS:-30}
 CERT_HOST=${CERT_HOST:-}
 UNPACKERR_LOG=${UNPACKERR_LOG:-/unpackerr/unpackerr.log}
 
-WATCH_CONTAINERS="plex ombi sonarr radarr prowlarr whisparr flaresolverr sabnzbd unpackerr qbittorrent frigate postgres autoheal stash immich-server immich-machine-learning immich-postgres immich-redis"
+ROLE=${ROLE:-media}
+# Containers to alert on: '*' (default) watches every container; or a
+# space-separated list of container names to restrict noise.
+WATCH_CONTAINERS=${WATCH_CONTAINERS:-*}
 
 mkdir -p "$STATE_DIR"
 
@@ -33,14 +36,63 @@ safe_name() {
   printf '%s' "$1" | tr -c 'A-Za-z0-9_.-' '_'
 }
 
+health_detail() {
+  name=$1
+  probe=$(docker inspect "$name" --format '{{json .State.Health.Log}}' 2>/dev/null |
+    jq -r '.[-1] | "exit=\(.ExitCode), output=\(.Output // "(no output)")"' 2>/dev/null || true)
+  logs=$(docker logs --tail 15 "$name" 2>&1 | tr -d '\r' | tail -c 800 || true)
+  detail="Health check: ${probe:-no health-check output recorded}"
+  if [ -n "$logs" ]; then
+    detail="$detail
+Last logs:
+$logs"
+  fi
+  printf '%s' "$detail" | cut -c1-2000
+}
+
+is_watched() {
+  case "$WATCH_CONTAINERS" in
+    '*'|all) return 0 ;;
+  esac
+  case " $WATCH_CONTAINERS " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+# Report already-unhealthy running containers once at startup. Stopped
+# containers may be intentional; subsequent die events cover new stops.
+reconcile_health() {
+  docker ps --filter status=running --format '{{.Names}}' 2>/dev/null |
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    is_watched "$name" || continue
+    status=$(docker inspect "$name" --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' 2>/dev/null || true)
+    if [ "$status" = unhealthy ]; then
+      previous=$(read_state "health.$name")
+      if [ "$previous" != unhealthy ]; then
+        send "⚠️ $name is unhealthy.
+$(health_detail "$name")"
+      fi
+      write_state "health.$name" "unhealthy"
+    fi
+  done
+}
+
+# docker events does not reconnect on its own; retry so a daemon restart
+# does not silently end event watching.
 watch_events() {
+  while :; do
+    handle_events
+    sleep 5
+  done
+}
+
+handle_events() {
   docker events --filter type=container \
     --format '{{.Action}}|{{.Actor.Attributes.name}}|{{.Actor.Attributes.exitCode}}|{{.Actor.Attributes.signal}}' |
   while IFS='|' read -r action name exit_code signal; do
-    case " $WATCH_CONTAINERS " in
-      *" $name "*) ;;
-      *) continue ;;
-    esac
+    is_watched "$name" || continue
 
     case "$action" in
       oom)
@@ -63,7 +115,8 @@ watch_events() {
         status=$(printf '%s' "$action" | sed 's/^health_status: *//')
         previous=$(read_state "health.$name")
         if [ "$status" = "unhealthy" ] && [ "$previous" != "unhealthy" ]; then
-          send "⚠️ $name is unhealthy. This may indicate VPN or service connectivity trouble."
+          send "⚠️ $name is unhealthy.
+$(health_detail "$name")"
         elif [ "$status" = "healthy" ] && [ "$previous" = "unhealthy" ]; then
           send "✅ $name is healthy again."
         fi
@@ -280,28 +333,35 @@ check_certificate() {
   rm -f "$cert_file"
 }
 
+reconcile_health
 watch_events &
 EVENT_PID=$!
-trap 'kill "$EVENT_PID" 2>/dev/null || true' EXIT INT TERM
+# On a signal, reap the watcher AND exit. Without the explicit exit the handler
+# returns and the main loop resumes, so the script ignores TERM and Docker is
+# forced to SIGKILL after the whole grace period (measured ~10s, exit 137).
+# The first `trap -` keeps the EXIT trap from re-entering this handler.
+trap 'trap - EXIT INT TERM; kill "$EVENT_PID" 2>/dev/null || true; exit 0' EXIT INT TERM
 
-echo "Monitoring Docker events, disk space, queues, Arr history, Unpackerr, HTTP services, and TLS."
+echo "Monitoring Docker events for all containers ($ROLE role${CERT_HOST:+, TLS for $CERT_HOST})."
 
 while :; do
-  check_disk
-  check_arr "Sonarr" "http://sonarr:8989" "${SONARR_API_KEY:-}" "arr.sonarr.last"
-  check_arr "Radarr" "http://radarr:7878" "${RADARR_API_KEY:-}" "arr.radarr.last"
-  check_unpackerr
-  check_http "Ombi" "http://ombi:3579/ombi/"
-  check_http "Plex" "http://plex:32400/identity"
-  check_http "Sonarr" "http://sonarr:8989/ping"
-  check_http "Radarr" "http://radarr:7878/ping"
-  check_http "Prowlarr" "http://prowlarr:9696/ping"
-  check_http "Whisparr" "http://whisparr:6969/ping"
-  check_http "FlareSolverr" "http://flaresolverr:8191/"
-  check_http "Stash" "http://stash:9999/"
-  check_http "Frigate" "http://frigate:5000/api/version"
-  check_http "Immich" "http://immich-server:2283/api/server/ping"
-  check_http "ImmichML" "http://immich-machine-learning:3003/ping"
+  if [ "$ROLE" = media ]; then
+    check_disk
+    check_arr "Sonarr" "http://sonarr:8989" "${SONARR_API_KEY:-}" "arr.sonarr.last"
+    check_arr "Radarr" "http://radarr:7878" "${RADARR_API_KEY:-}" "arr.radarr.last"
+    check_unpackerr
+    check_http "Ombi" "http://ombi:3579/ombi/"
+    check_http "Plex" "http://plex:32400/identity"
+    check_http "Sonarr" "http://sonarr:8989/ping"
+    check_http "Radarr" "http://radarr:7878/ping"
+    check_http "Prowlarr" "http://prowlarr:9696/ping"
+    check_http "Whisparr" "http://whisparr:6969/ping"
+    check_http "FlareSolverr" "http://flaresolverr:8191/"
+    check_http "Stash" "http://stash:9999/"
+    check_http "Frigate" "http://frigate:5000/api/version"
+    check_http "Immich" "http://immich-server:2283/api/server/ping"
+    check_http "ImmichML" "http://immich-machine-learning:3003/ping"
+  fi
   check_certificate
   sleep "$POLL_INTERVAL"
 done

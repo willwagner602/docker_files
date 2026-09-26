@@ -17,7 +17,7 @@ Docker Compose definitions for the services running on the home & media servers.
 | `qbittorrent.yml` | qBittorrent | Independent download service. |
 | `postgres.yml` | PostgreSQL | Separate database service. |
 | `autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
-| `health-notify.yml` | Health notifier | Watches Docker/container state through the Docker socket. |
+| `health-notify-media.yml` | Health notifier | Watches all containers through the Docker socket; the media role adds disk, queue, Arr, and HTTP checks. |
 | `frigate.yml` | Frigate | Independent NVR service. |
 | `photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
 
@@ -36,10 +36,21 @@ Docker Compose definitions for the services running on the home & media servers.
 | `tailscale.yml` | Tailscale | Independent host-networked service. |
 | `owntracks.yml` | OwnTracks Recorder | Independent service with persistent state. |
 | `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
-| `job-digest.yml` | Job Digest | Independent locally built service. |
+| `job-digest.yml` | Job Digest | Independent service using the `ghcr.io/willwagner602/job-search-tooling` image; state persists in the `/home/wbw/job-digest-state` bind mount. |
 | `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/home/wbw/couchdb`. |
+| `health-notify-general.yml` | Health notifier | Watches all containers through the Docker socket; the general role skips media-only checks and monitors the `willwagner.me` certificate. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
+
+### Other paths
+
+| Path | Purpose |
+| --- | --- |
+| `general/.env.example`, `media/.env.example` | Templates for the required per-stack variables. Copy to `.env` in the same directory and replace the values; `.env` is gitignored. |
+| `scripts/health-notify.sh` | Health-notification script used by both stacks' notifier containers; mounted read-only into the container. |
+| `scripts/tests/health-notify/` | Test suite for `health-notify.sh`, with stub binaries under `bin/`. Run with `make test`. |
+| `Makefile` | Local entry points: `make test`, `make validate`, `make check`. |
+| `.github/workflows/ci.yml` | CI: runs the shell test suite and validates both compose stacks. |
 
 ## Running a service
 
@@ -89,7 +100,7 @@ docker compose logs -f unifi
 
 ## Configuration and host prerequisites
 
-These files use host-specific bind mounts, device mappings, build contexts, and environment variables. Before starting a service:
+These files use host-specific bind mounts, device mappings, and environment variables. Before starting a service:
 
 1. Confirm that the referenced host paths and devices exist. For CouchDB, create the bind-mount directories before the first start and give them to UID 5984, the `couchdb` user inside the container: `mkdir -p /home/wbw/couchdb/{data,etc} && chown -R 5984:5984 /home/wbw/couchdb`. Docker creates missing bind-mount sources as root-owned, which leaves CouchDB unable to write.
 2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, `COUCHDB_USER` and `COUCHDB_PASSWORD` for CouchDB, `PIHOLE_WEBPASSWORD`, `MONGO_INITDB_ROOT_PASSWORD`, `MONGO_PASS`, and `ZWAVE_SESSION_SECRET` for the general services, and the VPN variables used by SABnzbd and qBittorrent. Photo uploader additionally requires `PHOTO_UPLOADER_PHOTO_PATH`, operator credentials, a session secret, a Bluesky handle, and a Bluesky App Password; it stores its SQLite database in the named `photo-uploader-data` volume.
@@ -115,8 +126,36 @@ To restore: stop the service, restore both directories, re-apply ownership (`cho
 Validate both complete application models before deploying:
 
 ```sh
-(cd media && docker compose config --quiet)
-(cd general && docker compose config --quiet)
+make validate
 ```
 
-The repository includes multiple host-specific configurations, so successful syntax validation does not guarantee that every bind mount, device, credential, or external build context is available on another machine.
+This mirrors what CI runs. It copies each stack's `.env.example` into a throwaway
+directory as `.env`, then runs `docker compose config --quiet` for `media/` and
+`general/` there — so your real `.env` files are never touched. Both stacks
+require env values (`${VAR:?...}`); `make validate` supplies them from the
+examples, which is why a bare `cd general && docker compose config` fails on a
+fresh checkout without a `.env`.
+
+The repository includes multiple host-specific configurations, so successful
+syntax validation does not guarantee that every bind mount, device, credential, or external build context is available on another machine.
+
+## Tests and CI
+
+`scripts/tests/health-notify.sh` logic is covered by a stubbed test suite:
+
+```sh
+make test        # run the suite (48 assertions)
+make check       # test + validate — what CI runs
+```
+
+The suite extracts the real script's functions and runs them against stub
+`curl`/`df`/`docker`/`openssl` binaries, so it needs no Docker daemon, no network,
+and no secrets. It writes all scratch to a temporary directory and never modifies
+the working tree.
+
+GitHub Actions runs both checks on every push and pull request (see
+`.github/workflows/ci.yml`): `shell-tests` runs the suite, and `compose-validate`
+strictly validates each stack. Note that `docker compose config` validates
+*configuration*, not runtime behavior — it would not catch something like a
+crash-looping container. See `.env.example` in each stack directory for the
+required variables.

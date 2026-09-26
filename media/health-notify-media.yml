@@ -1,0 +1,67 @@
+services:
+  docker-socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy@sha256:69c389630d3e01222be5f782457a8c2e9b5e55638afad349a26ac027a2ecb2ff
+    restart: unless-stopped
+    environment:
+      - EVENTS=1
+      - CONTAINERS=1
+      - ALLOW_LOGS=1
+      - POST=0
+      - AUTH=0
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=0
+      - INFO=0
+      - NETWORKS=0
+      - NODES=0
+      - PLUGINS=0
+      - SECRETS=0
+      - SERVICES=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VOLUMES=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"
+    # NOTE: deliberately no `no-new-privileges`. The image entrypoint needs
+    # setuid/setgid, and NNP turns that into "exec /docker-entrypoint.sh:
+    # operation not permitted", crash-looping the proxy. Verified against this
+    # pinned digest with a 4-way `docker run` matrix: `cap_drop: ALL` alone ->
+    # running; adding NNP -> exit 255 (still exit 255 with CAP_SETUID/CAP_SETGID
+    # added back). A dead proxy means the notifier cannot resolve its DNS alias
+    # and every Docker API call silently returns 000 while still logging
+    # "Monitoring ...".
+    cap_drop:
+      - ALL
+
+  health-notify:
+    image: docker:cli
+    container_name: health-notify-media
+    restart: unless-stopped
+    depends_on:
+      - docker-socket-proxy
+    # `exec` so the script replaces the wrapper shell and becomes PID 1. With a
+    # plain `sh /notify.sh`, sh -c stays PID 1, has no TERM handler, and the
+    # script never sees the signal.
+    command: sh -c "apk add --no-cache ca-certificates curl jq openssl >/dev/null && exec sh /notify.sh"
+    environment:
+      - DOCKER_HOST=tcp://docker-socket-proxy:2375
+      - ROLE=media
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:?Set TELEGRAM_BOT_TOKEN in .env}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:?Set TELEGRAM_CHAT_ID in .env}
+      - SAB_API_KEY=${SAB_API_KEY}
+      - SONARR_API_KEY=${SONARR_API_KEY}
+      - RADARR_API_KEY=${RADARR_API_KEY}
+      - STATE_DIR=/state
+      - POLL_INTERVAL=60
+      - STALL_SECONDS=3600
+      - DISK_FREE_THRESHOLD=25
+    volumes:
+      - ../scripts/health-notify.sh:/notify.sh:ro
+      - /home/wbw/health-notify/media:/state
+      - /bigdisk/plex:/data:ro

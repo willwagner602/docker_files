@@ -1,0 +1,14 @@
+#!/bin/sh
+# Stub df for check_disk. Emits POSIX (-P) format so the script's
+# `awk 'NR>1 && !seen[$1]++ {print $1"|"$5"|"$6}'` parses it.
+# $1=device  $5=capacity%  $6=mount
+#
+# STUB_DF_USE  - capacity percent for /data  (default 10)
+# STUB_DF_USE2 - capacity percent for /sab-config (default 10)
+set -u
+use=${STUB_DF_USE:-10}
+use2=${STUB_DF_USE2:-10}
+echo "Filesystem     1024-blocks      Used Available Capacity Mounted on"
+echo "/dev/sda1        100000000  80000000  20000000      ${use}% /data"
+echo "/dev/sdb1        100000000  80000000  20000000      ${use2}% /sab-config"
+exit 0

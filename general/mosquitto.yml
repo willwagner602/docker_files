@@ -2,15 +2,20 @@ services:
   mosquitto:
     image: eclipse-mosquitto
     ports:
-      - 1883:1883
-      - 8883:8883
+      - "127.0.0.1:1883:1883"
     volumes:
       - mosquitto-data:/mosquitto/data
       - mosquitto-logs:/mosquitto/logs
       - mosquitto-conf:/mosquitto/config
+    networks:
+      - default
+      - zwave
     restart: unless-stopped
 
 volumes:
   mosquitto-data:
   mosquitto-logs:
   mosquitto-conf:
+
+networks:
+  zwave:
