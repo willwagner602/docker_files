@@ -1,6 +1,6 @@
 services:
   ombi:
-    image: linuxserver/ombi
+    image: linuxserver/ombi:latest@sha256:acefcbde5f9fa09ea39451fc13fcc95aa6a877010b2d92f688a17361ddc14b3b
     container_name: ombi
     environment:
       - PUID=1001

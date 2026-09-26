@@ -1,7 +1,7 @@
 services:
   prowlarr:
     container_name: prowlarr
-    image: ghcr.io/hotio/prowlarr
+    image: ghcr.io/hotio/prowlarr:latest@sha256:241b6af1b823988be9ea07c1bd45c93d5570e7612ed8d6b428aa696852034295
     restart: unless-stopped
     labels:
       - autoheal=true

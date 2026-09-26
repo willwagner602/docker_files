@@ -1,7 +1,7 @@
 services:
   qbittorrent:
     container_name: qbittorrent
-    image: ghcr.io/hotio/qbittorrent
+    image: ghcr.io/hotio/qbittorrent:latest@sha256:73901c9b4594d4e0cefe7fc937b56f16ae0a210f31b9c48b69a1a520bb134e9a
     restart: unless-stopped
     labels:
       - autoheal=true

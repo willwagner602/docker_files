@@ -1,7 +1,7 @@
 services:
   sabnzbd:
     container_name: sabnzbd
-    image: ghcr.io/hotio/sabnzbd
+    image: ghcr.io/hotio/sabnzbd:latest@sha256:257bc0cc308af77a214f071867dc414f7dbe0bf0f31a1f520c531377d338f610
     restart: unless-stopped
     labels:
       - autoheal=true

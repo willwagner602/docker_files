@@ -1,6 +1,6 @@
 services:
   sonarr:
-    image: linuxserver/sonarr:3.0.10
+    image: linuxserver/sonarr:3.0.10@sha256:4f69472a0cdea29e23967db6a3395487539b759def3920327d1f49ae00b9dfd4
     container_name: sonarr
     restart: unless-stopped
     environment:
@@ -22,7 +22,7 @@ services:
       retries: 5
       start_period: 90s
   radarr:
-    image: linuxserver/radarr:4.4.4
+    image: linuxserver/radarr:4.4.4@sha256:4d7f994cbf5f27ccae86c86bb600c2db7c7a0f2b106b58419241b1a1c4c3ea39
     container_name: radarr
     restart: unless-stopped
     environment:
@@ -44,7 +44,7 @@ services:
       retries: 5
       start_period: 90s
   whisparr:
-    image: ghcr.io/hotio/whisparr:nightly
+    image: ghcr.io/hotio/whisparr:nightly@sha256:13f14e5cd86012f775cc07fe672cd279a295ef41605b8fc3ebfb47583bf50eac
     container_name: whisparr
     restart: unless-stopped
     environment:
@@ -64,7 +64,7 @@ services:
       retries: 5
       start_period: 90s
   stash:
-    image: stashapp/stash:latest
+    image: stashapp/stash:latest@sha256:df744af5a0c976e2ec671052ecc1f8a9aa757fa12b8f9930b59910b7295f0da6
     container_name: stash
     restart: unless-stopped
     user: "1001:1001"
@@ -97,7 +97,7 @@ services:
       retries: 5
       start_period: 120s
   unpackerr:
-    image: golift/unpackerr:latest
+    image: golift/unpackerr:latest@sha256:4ec141eeb0cb2f971d7c92f21cc40b0d2d50d7920eb7a0557443cca52270c0b0
     container_name: unpackerr
     restart: unless-stopped
     environment:

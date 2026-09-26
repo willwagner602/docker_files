@@ -40,7 +40,7 @@ services:
       - ALL
 
   health-notify:
-    image: docker:cli
+    image: docker:29-cli
     container_name: health-notify-media
     restart: unless-stopped
     depends_on:

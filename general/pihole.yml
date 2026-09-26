@@ -1,7 +1,7 @@
 services:
   pihole:
     container_name: pihole
-    image: pihole/pihole:latest
+    image: pihole/pihole:latest@sha256:70a9c11171ded2eee735d88c127996da209284a329d50f5ae59c06b861d401b3
     ports:
       - "53:53/tcp"
       - "53:53/udp"

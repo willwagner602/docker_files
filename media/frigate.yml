@@ -4,7 +4,7 @@ services:
     privileged: true # this may not be necessary for all setups
     restart: unless-stopped
     stop_grace_period: 30s # allow enough time to shut down the various services
-    image: ghcr.io/blakeblackshear/frigate:stable
+    image: ghcr.io/blakeblackshear/frigate:stable@sha256:4041ad318224500cf9513c513b1bb927d9dd252f63bbd3d11c92006c1172c86c
     shm_size: "512mb" # update for your cameras based on calculation above
     devices:
       - /dev/bus/usb:/dev/bus/usb # Passes the USB Coral

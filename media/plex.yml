@@ -1,6 +1,6 @@
 services:
   plex:
-    image: linuxserver/plex
+    image: linuxserver/plex:1.32.0@sha256:997889930bbf7ccd54da8feca3e7b7a6b90526aeefca6404d2f0fd28032d42bd
     container_name: plex
     restart: unless-stopped
     healthcheck:

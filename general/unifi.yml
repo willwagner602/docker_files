@@ -1,6 +1,6 @@
 services:
   unifi-db:
-    image: docker.io/mongo:noble
+    image: docker.io/mongo:noble@sha256:439371de4ada674320d417898402ef37b904d48c16dbc3968e0e17ef3b8ba00e
     container_name: unifi-db
     environment:
       - MONGO_INITDB_ROOT_USERNAME=root
@@ -17,7 +17,7 @@ services:
     restart: unless-stopped
 
   unifi:
-    image: lscr.io/linuxserver/unifi-network-application:latest
+    image: lscr.io/linuxserver/unifi-network-application:latest@sha256:b4e5b6d5190750e329c9d0e447b7cfea076d8d96dbc9500403c60176ce88d40e
     depends_on:
       - unifi-db
     container_name: unifi
