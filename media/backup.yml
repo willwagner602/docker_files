@@ -1,0 +1,70 @@
+# Daily backup of the "media" deployment. The script is shared with the
+# general stack (scripts/backup.sh); what to protect is declared entirely in
+# the environment below, which scripts/tests/backup/tests.sh cross-references
+# against every other service's mounts: adding a container whose state is not
+# covered fails `make test` and CI.
+#
+# Databases are NOT hot-copied: postgres-db-dump (media/postgres.yml) and
+# immich-db-dump (media/immich.yml) export pg_dumpall snapshots to
+# /bigdisk/db-dumps, which is what gets zipped. The zip lands in the Google
+# Drive "Server Backups" directory; rclone push off-box is a documented
+# follow-up in README.md.
+services:
+  backup:
+    image: docker:29-cli
+    container_name: backup-media
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # tzdata for BACKUP_AT in local time; zip for the archive itself.
+    command: sh -c "apk add --no-cache tzdata zip >/dev/null && exec sh /backup.sh"
+    environment:
+      - TZ=America/Los_Angeles
+      - ROLE=media
+      - DEST_DIR=/backups
+      - BACKUP_AT=04:00
+      - KEEP_DAILY=7
+      - KEEP_WEEKLY=11
+      - KEEP_MONTHLY=9
+      # Host paths to back up, mirroring the host layout inside the zip.
+      - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /bigdisk/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps /home/wbw/docker_files
+      # No named volumes are in use by any media service.
+      - BACKUP_VOLUMES=
+      # Service mounts deliberately NOT backed up, with the reason:
+      #   /bigdisk/plex, /bigdisk/plex/tv, /bigdisk/plex/movies,
+      #     /bigdisk/plex/downloads/*, /bigdisk/plex/xxx
+      #       — media libraries and downloads; regenerable from indexers.
+      #   /bigdisk/frigate — camera recordings; regenerable.
+      #   /bigdisk/immich/library — photos; excluded by decision 2026-10-06
+      #     (Drive quota; revisit if a dedicated photo backup appears).
+      #   /bigdisk/immich/model-cache, /bigdisk/plex/stash/generated,
+      #     /bigdisk/plex/stash/cache — regenerable caches/previews.
+      #   /bigdisk/immich/postgres, /bigdisk/plex/database — live database
+      #     data dirs, replaced by the pg_dumpall exports in /bigdisk/db-dumps.
+      #   /path/to/photos — photo-uploader source, read-only input.
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /bigdisk/plex /bigdisk/plex/tv /bigdisk/plex/movies /bigdisk/plex/downloads/xxx-inbox /bigdisk/plex/downloads/whisparr /bigdisk/plex/xxx /bigdisk/plex/stash/generated /bigdisk/plex/stash/cache /bigdisk/frigate /bigdisk/immich/library /bigdisk/immich/model-cache /bigdisk/immich/postgres /bigdisk/plex/database /path/to/photos
+      # Backup paths that no service mounts (repo copy for restorability).
+      - EXTRA_BACKUP_PATHS=/home/wbw/docker_files
+    volumes:
+      - ../scripts/backup.sh:/backup.sh:ro
+      - "/bigdisk/google-drive/Server Backups:/backups"
+      # --- protected bind-mount state (read-only) ---
+      - /config/frigate:/backup-roots/config/frigate:ro
+      - /home/wbw/health-notify/media:/backup-roots/home/wbw/health-notify/media:ro
+      - /home/wbw/photo-uploader-data:/backup-roots/home/wbw/photo-uploader-data:ro
+      - /home/wbw/unpackerr:/backup-roots/home/wbw/unpackerr:ro
+      - /bigdisk/plex/plex:/backup-roots/bigdisk/plex/plex:ro
+      - /bigdisk/plex/sonarr:/backup-roots/bigdisk/plex/sonarr:ro
+      - /bigdisk/plex/radarr:/backup-roots/bigdisk/plex/radarr:ro
+      - /bigdisk/plex/whisparr:/backup-roots/bigdisk/plex/whisparr:ro
+      - /bigdisk/plex/ombi:/backup-roots/bigdisk/plex/ombi:ro
+      - /bigdisk/plex/stash/config:/backup-roots/bigdisk/plex/stash/config:ro
+      - /bigdisk/plex/stash/metadata:/backup-roots/bigdisk/plex/stash/metadata:ro
+      - /bigdisk/prowlarr:/backup-roots/bigdisk/prowlarr:ro
+      - /bigdisk/qbittorrent/config:/backup-roots/bigdisk/qbittorrent/config:ro
+      - /bigdisk/sabnzbd/config:/backup-roots/bigdisk/sabnzbd/config:ro
+      - /bigdisk/db-dumps:/backup-roots/bigdisk/db-dumps:ro
+      - /home/wbw/docker_files:/backup-roots/home/wbw/docker_files:ro

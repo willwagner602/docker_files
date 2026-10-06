@@ -15,19 +15,25 @@ concurrency:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # 1. Shell logic tests for scripts/health-notify.sh.
+  # 1. Shell logic tests for scripts/health-notify.sh and scripts/backup.sh,
+  #    plus per-stack backup coverage (every deployed container's state must be
+  #    covered by the stack's backup service).
   #
-  # The suite runs the real script's functions against stubbed curl/df/docker/
-  # openssl, so it needs no Docker daemon, no network, and no secrets.
+  # The suites run the real scripts' functions against stubs / scratch dirs /
+  # resolved compose config, so they need no Docker daemon, no network, and no
+  # secrets (compose config runs client-side).
   # ---------------------------------------------------------------------------
   shell-tests:
-    name: shell tests (health-notify.sh)
+    name: shell tests (health-notify.sh, backup)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Run health-notify.sh test suite
         run: sh scripts/tests/health-notify/tests.sh
+
+      - name: Run backup test suite (retention + coverage)
+        run: sh scripts/tests/backup/tests.sh
 
   # ---------------------------------------------------------------------------
   # 2. Compose validation for both stacks.

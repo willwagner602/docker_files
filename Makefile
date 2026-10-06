@@ -17,13 +17,14 @@ STACKS := general media
 
 help:
 	@echo "Targets:"
-	@echo "  make test      Run the health-notify.sh shell test suite"
+	@echo "  make test      Run the health-notify.sh and backup shell test suites"
 	@echo "  make validate  Strict-interpolate the compose stacks (general, media)"
 	@echo "  make check     test + validate (what CI runs)"
 	@echo "  make hooks     Install the pre-push hook into .git/hooks"
 
 test:
 	@sh scripts/tests/health-notify/tests.sh
+	@sh scripts/tests/backup/tests.sh
 
 validate:
 	@set -eu; \

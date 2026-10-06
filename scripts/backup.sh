@@ -1,0 +1,240 @@
+#!/bin/sh
+# Daily in-container backup for a Compose stack (ROLE=general|media).
+#
+# Runs inside the stack's "backup" service (see <stack>/backup.yml, image
+# docker:29-cli). All protected state is mounted READ-ONLY, so the container
+# needs no docker socket and cannot damage the live system:
+#
+#   PATH_ROOT (default /backup-roots)  host paths, preserving the host layout
+#   VOLUME_ROOT (default /volume-roots) named volumes, one dir per volume name
+#
+# Everything the backup must cover is declared in the backup service's
+# environment (BACKUP_PATHS / BACKUP_VOLUMES), which doubles as the machine
+# readable coverage manifest checked by scripts/tests/backup/tests.sh: the test
+# cross-references that list against every other service's resolved mounts, so
+# a new container whose state is not backed up fails CI and `make test`.
+#
+# Scheduling: sleeps until BACKUP_AT (default 04:00, container-local time via
+# TZ), then repeats daily. Retention is grandfather-father-son:
+# KEEP_DAILY/KEEP_WEEKLY/KEEP_MONTHLY (default 7/11/9 = 27 restore points).
+#
+# Manual run, e.g. for a stop-first consistent copy of the databases:
+#   docker compose stop couchdb unifi-db
+#   docker compose run --rm backup sh -c 'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+#   docker compose start couchdb unifi-db
+#
+# Output: $DEST_DIR/$ROLE-backup-YYYYMMDDTHHMMSSZ.zip, mirroring the host
+# layout, with named volumes under docker-volumes/<volume-name> and a
+# backup-manifest.txt declaring what the snapshot covers.
+set -eu
+
+PATH_ROOT=${PATH_ROOT:-/backup-roots}
+VOLUME_ROOT=${VOLUME_ROOT:-/volume-roots}
+
+ROLE=${ROLE:?ROLE not set (general or media)}
+DEST_DIR=${DEST_DIR:?DEST_DIR not set}
+BACKUP_PATHS=${BACKUP_PATHS:-}
+BACKUP_VOLUMES=${BACKUP_VOLUMES:-}
+BACKUP_AT=${BACKUP_AT:-04:00}
+KEEP_DAILY=${KEEP_DAILY:-7}
+KEEP_WEEKLY=${KEEP_WEEKLY:-11}
+KEEP_MONTHLY=${KEEP_MONTHLY:-9}
+# Patterns passed to zip -x. Databases here are hot-copied by design (media's
+# Postgres databases go through pg_dump sidecars instead); these four patterns
+# skip SQLite side files that are meaningless mid-write. NOTE: patterns must
+# NOT start with "*/" — zip's matcher needs * to consume at least one
+# character, so a leading "*/" never matches a relative archive path.
+EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm}
+
+log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"; }
+warn() { log "WARNING: $*" >&2; }
+
+usage() {
+  echo "Usage: sh /backup.sh [--now]"
+  echo "  --now  take one snapshot immediately, then exit (no retention changes beyond the usual prune)"
+}
+
+# ---------------------------------------------------------------------------
+# Backup
+# ---------------------------------------------------------------------------
+
+# Take one snapshot. Runs in a subshell so the cleanup trap never touches the
+# scheduler loop. A lock directory prevents a manual --now run from racing the
+# nightly scheduler.
+run_backup() (
+  mkdir -p "$DEST_DIR"
+  lock="$DEST_DIR/.backup-lock"
+  if ! mkdir "$lock" 2>/dev/null; then
+    if [ -d "$lock" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +720)" ]; then
+      warn "stale lock (over 12h old) found; stealing it"
+      rmdir "$lock" 2>/dev/null || { warn "another backup is running; aborting"; return 1; }
+    else
+      warn "another backup is running; aborting"
+      return 1
+    fi
+  fi
+  trap 'rmdir "$lock" 2>/dev/null' EXIT
+  echo $$ > "$lock/pid"
+
+  ts=$(date -u +%Y%m%dT%H%M%SZ)
+  final="$DEST_DIR/$ROLE-backup-$ts.zip"
+  staging="$final.part"
+  work=$(mktemp -d "${TMPDIR:-/tmp}/$ROLE-backup.XXXXXX")
+  # One trap for everything; it fires when the subshell exits (early failure
+  # included) and after the final mv. rm -rf (not rmdir) because the lock holds
+  # a pid file.
+  trap 'rm -rf "$work" "$lock" 2>/dev/null' EXIT INT TERM
+
+  # Clean up a previously interrupted run's partial file.
+  rm -f "$DEST_DIR/$ROLE-backup-"*".part" 2>/dev/null || true
+
+  for path in $BACKUP_PATHS; do
+    src="$PATH_ROOT$path"
+    if [ ! -e "$src" ]; then
+      warn "skipping missing path $path"
+      continue
+    fi
+    mkdir -p "$work$(dirname "$path")"
+    cp -a "$src" "$work$path"
+    log "copied $path ($(du -sh "$src" 2>/dev/null | cut -f1))"
+  done
+
+  for volume in $BACKUP_VOLUMES; do
+    src="$VOLUME_ROOT/$volume"
+    if [ ! -d "$src" ]; then
+      warn "skipping missing volume $volume"
+      continue
+    fi
+    mkdir -p "$work/docker-volumes/$volume"
+    cp -a "$src/." "$work/docker-volumes/$volume/"
+    log "copied volume $volume ($(du -sh "$src" 2>/dev/null | cut -f1))"
+  done
+
+  {
+    echo "role: $ROLE"
+    echo "host: $(hostname)"
+    echo "created: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "paths: $BACKUP_PATHS"
+    echo "volumes: $BACKUP_VOLUMES"
+    echo "excluded patterns: $EXCLUDES"
+  } > "$work/backup-manifest.txt"
+
+  # Disable globbing while splitting EXCLUDES: patterns like */foo/bar/* must
+  # reach zip literally, not be expanded against the current directory (in the
+  # container that is /, where the read-only state mounts live).
+  set -f
+  set --            # rebuild "$@" as the zip exclude arguments
+  for pattern in $EXCLUDES; do
+    set -- "$@" -x "$pattern"
+  done
+  set +f
+  (cd "$work" && zip -qr9 "$staging" . "$@")
+  mv "$staging" "$final"
+  log "backup complete: $final ($(du -h "$final" | cut -f1))"
+)
+
+# ---------------------------------------------------------------------------
+# Retention (grandfather-father-son)
+# ---------------------------------------------------------------------------
+# Buckets come from the UTC timestamp in the filename. Tiers are sequential,
+# not overlapping: the 7 dailies are the newest distinct days; the 11 weeklies
+# are the newest zip of each distinct week strictly BEFORE the oldest daily's
+# week; the 9 monthlies are the newest zip of each distinct month strictly
+# before the oldest weekly's month. That yields KEEP_DAILY + KEEP_WEEKLY +
+# KEEP_MONTHLY = 27 distinct restore points (with dense daily history; sparse
+# history keeps fewer). Weeks are 7-day buckets anchored to Monday
+# ((days + 3) / 7: 1970-01-01 was a Thursday).
+prune_backups() {
+  [ -d "$DEST_DIR" ] || return 0
+  files=$(ls -1 "$DEST_DIR" 2>/dev/null | grep "^$ROLE-backup-.*\.zip$" | sort -r) || return 0
+  [ -n "$files" ] || return 0
+
+  printf '%s\n' "$files" | TZ=UTC awk \
+    -v role="$ROLE" -v kd="$KEEP_DAILY" -v kw="$KEEP_WEEKLY" -v km="$KEEP_MONTHLY" '
+    BEGIN {
+      prefix = role "-backup-"
+      plen = length(prefix)
+      epoch = mktime("1970 01 01 12 00 00")
+    }
+    {
+      ts = substr($0, plen + 1, 16)
+      if (length(ts) != 16 || substr(ts, 9, 1) != "T" || substr(ts, 16, 1) != "Z") next
+      y = substr(ts, 1, 4) + 0; mo = substr(ts, 5, 2) + 0; d = substr(ts, 7, 2) + 0
+      days = int((mktime(sprintf("%04d %02d %02d 12 00 00", y, mo, d)) - epoch) / 86400)
+      ++n
+      f[n] = $0
+      day[n] = substr(ts, 1, 8)
+      week[n] = int((days + 3) / 7)
+      month[n] = substr(ts, 1, 6)
+    }
+    END {
+      for (i = 1; i <= n; i++) { wday[day[i]] = week[i]; mday[day[i]] = month[i] }
+      # Tier 1: newest KEEP_DAILY distinct days.
+      for (i = 1; i <= n && nd < kd; i++)
+        if (!(day[i] in sd)) { sd[day[i]] = 1; kept[f[i]] = 1; nd++; od = day[i] }
+      cut_week = (od == "") ? 0 : wday[od]
+      # Tier 2: newest zip of each distinct week older than the oldest daily.
+      for (i = 1; i <= n && nw < kw; i++)
+        if (week[i] < cut_week && !(week[i] in sw)) {
+          sw[week[i]] = 1; kept[f[i]] = 1; nw++; om = month[i]
+        }
+      # Tier 3: newest zip of each distinct month older than the oldest weekly
+      # (or the oldest daily, if no weeklies were kept).
+      cut_month = (om != "") ? om : (od == "" ? "" : mday[od])
+      for (i = 1; cut_month != "" && i <= n && nm < km; i++)
+        if (month[i] < cut_month && !(month[i] in sm)) {
+          sm[month[i]] = 1; kept[f[i]] = 1; nm++
+        }
+      for (i = 1; i <= n; i++) if (!(f[i] in kept)) print f[i]
+    }' | while IFS= read -r victim; do
+      rm -f "$DEST_DIR/$victim"
+      log "pruned old backup: $victim"
+    done
+}
+
+# ---------------------------------------------------------------------------
+# Scheduling
+# ---------------------------------------------------------------------------
+
+# Seconds until the next BACKUP_AT. $1 is the minimum seconds into the future
+# (0 at startup; pass 3600 after a completed run so the fall-back-DST hour
+# cannot trigger a second run one hour later).
+seconds_until_next_run() {
+  min_gap=${1:-0}
+  now=$(date +%s)
+  target=$(date -d "$(date +%F) $BACKUP_AT:00" +%s)
+  if [ "$target" -lt $((now + min_gap)) ]; then
+    target=$((target + 86400))
+  fi
+  echo $((target - now))
+}
+
+main() {
+  case ${1:-} in
+    --now) run_backup; prune_backups; return 0 ;;
+    -h | --help) usage; return 0 ;;
+    "") ;;
+    *) usage >&2; return 2 ;;
+  esac
+
+  log "backup scheduler started (role=$ROLE dest=$DEST_DIR at=$BACKUP_AT keep=${KEEP_DAILY}d/${KEEP_WEEKLY}w/${KEEP_MONTHLY}m)"
+  gap=0
+  while :; do
+    wait=$(seconds_until_next_run "$gap")
+    log "next backup at $BACKUP_AT (sleeping ${wait}s)"
+    sleep "$wait"
+    if run_backup; then
+      prune_backups
+    else
+      log "ERROR: backup run failed" >&2
+    fi
+    # A completed run must be at least an hour in the past before the next
+    # target fires, so the fall-back-DST hour cannot cause a double run.
+    gap=3600
+  done
+}
+
+# Tests source this script for its functions; the guard keeps main() quiet.
+if [ -z "${BACKUP_SOURCE_ONLY:-}" ]; then
+  main "$@"
+fi
