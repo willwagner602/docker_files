@@ -10,6 +10,11 @@ services:
       - otr-config:/config
       - otr-store:/store
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   otr-config:

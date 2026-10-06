@@ -2,6 +2,11 @@ services:
   docker-socket-proxy:
     image: lscr.io/linuxserver/socket-proxy@sha256:69c389630d3e01222be5f782457a8c2e9b5e55638afad349a26ac027a2ecb2ff
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       - EVENTS=1
       - CONTAINERS=1
@@ -43,6 +48,11 @@ services:
     image: docker:29-cli
     container_name: health-notify-general
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       - docker-socket-proxy
     # `exec` so the script replaces the wrapper shell and becomes PID 1. With a

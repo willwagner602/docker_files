@@ -18,3 +18,32 @@ services:
       - /bigdisk/plex/database:/var/lib/postgresql/data
     ports:
       - "127.0.0.1:5432:5432"
+
+  # Daily pg_dumpall export consumed by the backup service (media/backup.yml).
+  # Hot-copying /var/lib/postgresql/data can capture the database mid-write, so
+  # the backup zips this SQL snapshot instead of the raw data dir. One dump per
+  # day (start + every 24h), atomically replaced; history comes from the zip
+  # retention schedule, not from this directory.
+  postgres-db-dump:
+    image: postgres:16@sha256:4b7183ac05f8ef417db21fd72d71047a4238340c261d3cc3ddb6d579ab5071ae
+    container_name: postgres-db-dump
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - PGPASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - /bigdisk/db-dumps:/dumps
+    command: >-
+      sh -c "while :; do
+      pg_dumpall -h postgres -U plex --clean --if-exists > /dumps/postgres-all.sql.part
+      && mv /dumps/postgres-all.sql.part /dumps/postgres-all.sql
+      && echo '$$(date -u +%FT%TZ) postgres dump ok'
+      || echo 'postgres dump FAILED; retrying in 24h';
+      sleep 86400; done"

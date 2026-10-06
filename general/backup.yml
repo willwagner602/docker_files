@@ -1,0 +1,69 @@
+# Daily backup of the full "general" deployment. The script is shared with the
+# media stack (scripts/backup.sh); what to protect is declared entirely in the
+# environment below, which scripts/tests/backup/tests.sh cross-references
+# against every other service's mounts: adding a container whose state is not
+# covered fails `make test` and CI.
+#
+# All protected state is mounted READ-ONLY — this container needs no docker
+# socket. The zip lands in the Google Drive "Server Backups" directory
+# (locally synced at /mnt/smallHDD/google-drive); rclone push off-box is a
+# documented follow-up in README.md.
+services:
+  backup:
+    image: docker:29-cli
+    container_name: backup-general
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # tzdata for BACKUP_AT in local time; zip for the archive itself.
+    command: sh -c "apk add --no-cache tzdata zip >/dev/null && exec sh /backup.sh"
+    environment:
+      - TZ=America/Los_Angeles
+      - ROLE=general
+      - DEST_DIR=/backups
+      - BACKUP_AT=04:00
+      - KEEP_DAILY=7
+      - KEEP_WEEKLY=11
+      - KEEP_MONTHLY=9
+      # Host paths to back up, mirroring the host layout inside the zip.
+      - BACKUP_PATHS=/home/wbw/docker /home/wbw/etc-pihole /home/wbw/etc-dnsmasq.d /home/wbw/data /home/wbw/letsencrypt /home/wbw/mongo /home/wbw/unifi-config /home/wbw/couchdb /home/wbw/job-digest-state /home/wbw/secrets.json /home/wbw/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/docker_files
+      # Named volumes to back up (logical compose names).
+      - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config
+      # Service mounts deliberately NOT backed up, with the reason.
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules
+      # Backup paths that no service mounts (repo copy for restorability).
+      - EXTRA_BACKUP_PATHS=/home/wbw/work/job-search-tooling /home/wbw/docker_files
+      # Excluded from inside the backed-up paths: HA's own snapshot folder
+      # (1.6G of nested zip-in-zip), 2022-era corrupt-database leftovers
+      # (~1.1G), rotated HA logs, and Pi-hole's FTL query-history database
+      # (1.5G; gravity.db below it carries the real blocklist state).
+      - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *home-assistant_v2.db.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *etc-pihole/pihole-FTL.db
+    volumes:
+      - ../scripts/backup.sh:/backup.sh:ro
+      - "/mnt/smallHDD/google-drive/Server Backups:/backups"
+      # --- protected bind-mount state (read-only) ---
+      - /home/wbw/docker:/backup-roots/home/wbw/docker:ro
+      - /home/wbw/etc-pihole:/backup-roots/home/wbw/etc-pihole:ro
+      - /home/wbw/etc-dnsmasq.d:/backup-roots/home/wbw/etc-dnsmasq.d:ro
+      - /home/wbw/data:/backup-roots/home/wbw/data:ro
+      - /home/wbw/letsencrypt:/backup-roots/home/wbw/letsencrypt:ro
+      - /home/wbw/mongo:/backup-roots/home/wbw/mongo:ro
+      - /home/wbw/unifi-config:/backup-roots/home/wbw/unifi-config:ro
+      - /home/wbw/couchdb:/backup-roots/home/wbw/couchdb:ro
+      - /home/wbw/job-digest-state:/backup-roots/home/wbw/job-digest-state:ro
+      - /home/wbw/secrets.json:/backup-roots/home/wbw/secrets.json:ro
+      - /home/wbw/health-notify/general:/backup-roots/home/wbw/health-notify/general:ro
+      - /home/wbw/work/job-search-tooling:/backup-roots/home/wbw/work/job-search-tooling:ro
+      - /home/wbw/docker_files:/backup-roots/home/wbw/docker_files:ro
+      # --- protected named volumes (read-only) ---
+      - mosquitto-data:/volume-roots/mosquitto-data:ro
+      - mosquitto-logs:/volume-roots/mosquitto-logs:ro
+      - mosquitto-conf:/volume-roots/mosquitto-conf:ro
+      - otr-config:/volume-roots/otr-config:ro
+      - otr-store:/volume-roots/otr-store:ro
+      - tailscale-state:/volume-roots/tailscale-state:ro
+      - etc_wireguard:/volume-roots/etc_wireguard:ro
+      - zwave-config:/volume-roots/zwave-config:ro

@@ -15,6 +15,11 @@ services:
     networks:
       - unifi-net
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   unifi:
     image: lscr.io/linuxserver/unifi-network-application:latest@sha256:b4e5b6d5190750e329c9d0e447b7cfea076d8d96dbc9500403c60176ce88d40e
@@ -48,6 +53,11 @@ services:
     networks:
       - unifi-net
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 
 networks:

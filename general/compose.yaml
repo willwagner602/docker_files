@@ -12,4 +12,5 @@ include:
   - mosquitto.yml
   - job-digest.yml
   - couchdb.yml
+  - backup.yml
   - health-notify-general.yml

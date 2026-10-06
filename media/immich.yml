@@ -65,3 +65,33 @@ services:
     shm_size: 128mb
     healthcheck:
       disable: false
+
+  # Daily pg_dumpall export consumed by the backup service (media/backup.yml).
+  # Hot-copying /var/lib/postgresql/data can capture the database mid-write, so
+  # the backup zips this SQL snapshot instead of the raw data dir. This is the
+  # same export Immich's own restore docs call for. One dump per day
+  # (start + every 24h), atomically replaced; history comes from the zip
+  # retention schedule, not from this directory.
+  immich-db-dump:
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    container_name: immich-db-dump
+    restart: unless-stopped
+    depends_on:
+      immich-postgres:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - PGPASSWORD=${IMMICH_DB_PASSWORD:?set a strong Immich DB password in .env}
+    volumes:
+      - /bigdisk/db-dumps:/dumps
+    command: >-
+      sh -c "while :; do
+      pg_dumpall -h immich-postgres -U ${IMMICH_DB_USERNAME:-immich} --clean --if-exists > /dumps/immich-all.sql.part
+      && mv /dumps/immich-all.sql.part /dumps/immich-all.sql
+      && echo '$$(date -u +%FT%TZ) immich dump ok'
+      || echo 'immich dump FAILED; retrying in 24h';
+      sleep 86400; done"

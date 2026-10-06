@@ -109,13 +109,62 @@ These files use host-specific bind mounts, device mappings, and environment vari
 
 The Compose files do not create host directories or hardware devices automatically.
 
+## Backups
+
+Each stack runs a `backup` service (`general/backup.yml`, `media/backup.yml`) that
+takes a full snapshot of the stack's state once a day at 04:00 local time and
+writes `<stack>-backup-<timestamp>.zip` into the Google Drive "Server Backups"
+directory (`/mnt/smallHDD/google-drive/Server Backups` on general,
+`/bigdisk/google-drive/Server Backups` on media). All protected state is mounted
+read-only into the backup container, which therefore needs no docker socket.
+
+What gets backed up is declared in the backup service's `BACKUP_PATHS` /
+`BACKUP_VOLUMES` environment. `scripts/tests/backup/tests.sh` cross-references
+that list against every other service's resolved mounts, so adding a container
+without backup coverage fails `make test` and CI. Mounts deliberately excluded
+(media libraries, Frigate recordings, Immich's photo library, regenerable
+caches, live database data dirs) are listed in `EXCLUDED_MOUNTS` with reasons in
+`media/backup.yml`.
+
+Databases on media are not hot-copied: `postgres-db-dump` (media/postgres.yml)
+and `immich-db-dump` (media/immich.yml) export nightly `pg_dumpall` snapshots to
+`/bigdisk/db-dumps`, which the backup zips. On general, CouchDB, UniFi's
+MongoDB, and Home Assistant's SQLite database are hot-copied (excluding
+mid-write SQLite side files); see the CouchDB section below for a consistent
+alternative.
+
+Retention is grandfather-father-son: the last 7 daily snapshots, then one per
+week for 11 weeks, then one per month for 9 months — 27 restore points. Pruning
+runs after each successful backup and only ever touches files matching
+`<stack>-backup-*.zip`.
+
+Manual run (e.g. for a stop-first consistent copy of the general databases):
+
+```sh
+cd general
+docker compose stop couchdb unifi-db
+docker compose run --rm backup sh -c 'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+docker compose start couchdb unifi-db
+```
+
+Restore: unzip the snapshot (it mirrors the host layout, with named volumes
+under `docker-volumes/<volume-name>`), stop the affected services, copy the
+state back (re-apply ownership where the service is picky — CouchDB needs
+`chown -R 5984:5984 /home/wbw/couchdb`), restore named volumes with
+`docker volume create` + copy, and start the services. Each zip contains a
+`backup-manifest.txt` declaring exactly what it covers.
+
+Off-box replication is a follow-up: point `rclone move` (or `restic`) at the
+"Server Backups" directory once a Google Drive remote is configured.
+
 ## CouchDB backup and restore
 
 `/home/wbw/couchdb/data` is the authoritative state (databases and indexes); `/home/wbw/couchdb/etc` holds the `local.d` configuration, including the admin credential hash written on first start. Existing host backups of `/home/wbw` therefore cover CouchDB, with one consistency requirement: a copy taken while the container is running can capture a database mid-write. For a consistent copy, stop the service first:
 
 ```sh
 cd general && docker compose stop couchdb
-# back up /home/wbw/couchdb with the existing host backup tooling
+# see "Backups" above: docker compose run --rm backup sh -c \
+#   'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
 docker compose start couchdb
 ```
 
