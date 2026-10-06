@@ -4,6 +4,11 @@ services:
     pull_policy: always
     container_name: job-digest
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       TZ: America/Los_Angeles
       JOB_DIGEST_DIR: /app/.job_digest

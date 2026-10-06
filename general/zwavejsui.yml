@@ -3,6 +3,11 @@ services:
     container_name: zwave-js-ui
     image: zwavejs/zwave-js-ui:latest@sha256:944d39fe22d8985ddcbef0849cd22984b8340448f742195821cc34f7a9ca1bb4
     restart: always
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     tty: true
     stop_signal: SIGINT
     environment:
