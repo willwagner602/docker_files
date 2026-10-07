@@ -14,6 +14,7 @@ services:
       - REDIS_HOSTNAME=immich-redis
     volumes:
       - ${IMMICH_UPLOAD_LOCATION:-/bigdisk/immich/library}:/data
+      - /bigdisk/google-drive/Photos:/mnt/google-drive-photos:ro
       - /etc/localtime:/etc/localtime:ro
     depends_on:
       immich-redis:
