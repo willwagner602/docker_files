@@ -31,9 +31,14 @@ services:
       # Host paths to back up, mirroring the host layout inside the zip.
       - BACKUP_PATHS=/home/wbw/docker /home/wbw/etc-pihole /home/wbw/etc-dnsmasq.d /home/wbw/data /home/wbw/letsencrypt /home/wbw/mongo /home/wbw/unifi-config /home/wbw/couchdb /home/wbw/job-digest-state /home/wbw/secrets.json /home/wbw/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/docker_files
       # Named volumes to back up (logical compose names).
-      - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config
-      # Service mounts deliberately NOT backed up, with the reason.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules
+      - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys
+      # Service mounts deliberately NOT backed up, with the reason:
+      #   /proc — host process table mounted for the Komodo agent.
+      #   /etc/komodo — Periphery root dir for Komodo-managed stacks; empty
+      #     in this monitoring-only setup.
+      #   /etc/komodo/backups — Komodo Core's own dated DB dumps; redundant
+      #     with the komodo-mongo-* volumes that are backed up directly.
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo
       # Backup paths that no service mounts (repo copy for restorability).
       - EXTRA_BACKUP_PATHS=/home/wbw/work/job-search-tooling /home/wbw/docker_files
       # Excluded from inside the backed-up paths: HA's own snapshot folder
@@ -67,3 +72,6 @@ services:
       - tailscale-state:/volume-roots/tailscale-state:ro
       - etc_wireguard:/volume-roots/etc_wireguard:ro
       - zwave-config:/volume-roots/zwave-config:ro
+      - komodo-mongo-data:/volume-roots/komodo-mongo-data:ro
+      - komodo-mongo-config:/volume-roots/komodo-mongo-config:ro
+      - komodo-keys:/volume-roots/komodo-keys:ro

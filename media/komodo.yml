@@ -1,0 +1,41 @@
+# Komodo Periphery agent for the media host, in outbound mode: this agent
+# initiates the connection to Komodo Core on general (ws://10.0.0.16:9120), so
+# no inbound port is opened on media.
+#
+# One-time setup after Core is running on general:
+#   1. Log in to the Core UI (http://10.0.0.16:9120) as the admin.
+#   2. Settings / Onboarding -> create a key, enable privileged mode.
+#   3. Put it in media/.env as PERIPHERY_ONBOARDING_KEY, then
+#      docker compose up -d komodo-periphery
+# The agent registers itself as the server named by PERIPHERY_CONNECT_AS.
+services:
+  komodo-periphery:
+    image: ghcr.io/moghtech/komodo-periphery@sha256:fa3f1a641a265216066676950d5eecdf506955a7bafe2f01996135ae93115cd5
+    container_name: komodo-periphery
+    init: true # Komodo v2: required, prevents zombie process build-up
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - TZ=America/Los_Angeles
+      - PERIPHERY_CORE_ADDRESS=${PERIPHERY_CORE_ADDRESS:-ws://10.0.0.16:9120}
+      - PERIPHERY_CONNECT_AS=${PERIPHERY_CONNECT_AS:-media}
+      - PERIPHERY_ONBOARDING_KEY=${PERIPHERY_ONBOARDING_KEY:-}
+    volumes:
+      # Persist the agent's auto-generated private keys across recreation
+      - komodo-keys:/config/keys
+      # Management agent needs write access to Docker (standard Komodo
+      # deployment; the read-only socket-proxy cannot provide this)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Let Periphery see host processes outside of containers
+      - /proc:/proc
+      # Periphery root dir; must match inside and outside the container.
+      # Only used by Komodo-managed stacks/repos — not used in this
+      # monitoring-only setup.
+      - /etc/komodo:/etc/komodo
+
+volumes:
+  komodo-keys:

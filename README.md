@@ -109,6 +109,28 @@ These files use host-specific bind mounts, device mappings, and environment vari
 
 The Compose files do not create host directories or hardware devices automatically.
 
+## Monitoring (Komodo)
+
+Both stacks run Komodo (https://komo.do) — a single dashboard endpoint for
+Docker and service status across both hosts, with notifications (Telegram et
+al., configured in the UI), per-container logs, and restart controls.
+
+- `general/komodo.yml` runs Core (+ MongoDB) and the local Periphery agent.
+  The UI is at `http://<general-host>:9120`; the initial admin is created from
+  `KOMODO_INIT_ADMIN_*` in `general/.env` on first launch. Registration is
+  disabled.
+- `media/komodo.yml` runs the Periphery agent in outbound mode: it connects to
+  Core on general (`ws://10.0.0.16:9120`) and opens no inbound port on media.
+  One-time setup: log in to Core, create an onboarding key with privileged mode
+  (Settings / Onboarding), put it in `media/.env` as `PERIPHERY_ONBOARDING_KEY`,
+  then `docker compose up -d komodo-periphery`.
+
+The Periphery agents mount the raw docker socket by design: they are management
+agents that need write access (restart/stop, log reads), which the read-only
+socket-proxy deliberately does not provide. Komodo's Mongo state and agent keys
+are covered by the backup services; Komodo's own alerting is configured in the
+UI (Settings / Alerters).
+
 ## Backups
 
 Each stack runs a `backup` service (`general/backup.yml`, `media/backup.yml`) that
