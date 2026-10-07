@@ -13,4 +13,5 @@ include:
   - job-digest.yml
   - couchdb.yml
   - backup.yml
+  - komodo.yml
   - health-notify-general.yml

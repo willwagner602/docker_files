@@ -105,6 +105,10 @@ def covered_by_paths(src):
     return any(src == p or src.startswith(p + "/") for p in paths)
 
 
+def excluded_by_paths(src):
+    return any(src == e or src.startswith(e + "/") for e in excluded)
+
+
 def path_covers_mount(p):
     return any(p == s or s.startswith(p + "/") for s in all_binds)
 
@@ -112,7 +116,7 @@ def path_covers_mount(p):
 # 2. every bind mount covered or explicitly excluded
 for svc, srcs in sorted(bind_mounts.items()):
     for src in srcs:
-        if covered_by_paths(src) or src in excluded:
+        if covered_by_paths(src) or excluded_by_paths(src):
             continue
         problems.append(
             f"service {svc} mounts {src} which is in neither BACKUP_PATHS nor EXCLUDED_MOUNTS"

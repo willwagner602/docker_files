@@ -65,6 +65,11 @@ jobs:
           TELEGRAM_CHAT_ID: ci-placeholder
           COUCHDB_USER: ci-placeholder
           COUCHDB_PASSWORD: ci-placeholder
+          KOMODO_DATABASE_USERNAME: ci-placeholder
+          KOMODO_DATABASE_PASSWORD: ci-placeholder
+          KOMODO_INIT_ADMIN_PASSWORD: ci-placeholder
+          KOMODO_JWT_SECRET: ci-placeholder
+          KOMODO_WEBHOOK_SECRET: ci-placeholder
           # --- media stack (immich) ---
           IMMICH_VERSION: ci-placeholder
           IMMICH_DB_PASSWORD: ci-placeholder

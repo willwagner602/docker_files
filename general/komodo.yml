@@ -1,0 +1,101 @@
+# Komodo — unified Docker/service dashboard across both hosts (https://komo.do)
+#
+# Core + its MongoDB run here on general (the single dashboard endpoint, :9120);
+# media runs the Periphery agent in outbound mode (media/komodo.yml).
+# A local Periphery agent runs here too so general's own containers are managed
+# through the same agent path as every other host.
+#
+# NOTE on the docker socket: Periphery is a management agent — it needs write
+# access to Docker (start/stop/restart containers, read logs), which the
+# read-only socket-proxy (POST=0) deliberately cannot provide. This raw socket
+# mount is the standard Komodo deployment; scope is limited to the agent.
+services:
+  komodo-mongo:
+    image: mongo@sha256:d731d77bfd7afd66bd487bdf627b5bf7ce4c3602ec461d635977021db529ebbc
+    container_name: komodo-mongo
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    labels:
+      komodo.skip: # Prevent Komodo from stopping its own DB with StopAllContainers
+    command: --quiet --wiredTigerCacheSizeGB 0.25
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${KOMODO_DATABASE_USERNAME:?set in general/.env}
+      - MONGO_INITDB_ROOT_PASSWORD=${KOMODO_DATABASE_PASSWORD:?set in general/.env}
+    volumes:
+      - komodo-mongo-data:/data/db
+      - komodo-mongo-config:/data/configdb
+
+  komodo-core:
+    image: ghcr.io/moghtech/komodo-core@sha256:bca73d0eee143066228fb9b80c38a5a2726e573ad2758f7aa92b5c91a8aef1c7
+    container_name: komodo-core
+    init: true # Komodo v2: required, prevents zombie process build-up
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - komodo-mongo
+    ports:
+      - "9120:9120"
+    environment:
+      - TZ=America/Los_Angeles
+      - KOMODO_DATABASE_ADDRESS=komodo-mongo:27017
+      - KOMODO_DATABASE_USERNAME=${KOMODO_DATABASE_USERNAME}
+      - KOMODO_DATABASE_PASSWORD=${KOMODO_DATABASE_PASSWORD}
+      - KOMODO_LOCAL_AUTH=true
+      - KOMODO_INIT_ADMIN_USERNAME=${KOMODO_INIT_ADMIN_USERNAME:-admin}
+      - KOMODO_INIT_ADMIN_PASSWORD=${KOMODO_INIT_ADMIN_PASSWORD:?set in general/.env}
+      - KOMODO_JWT_SECRET=${KOMODO_JWT_SECRET:?set in general/.env}
+      - KOMODO_WEBHOOK_SECRET=${KOMODO_WEBHOOK_SECRET:?set in general/.env}
+      - KOMODO_PERIPHERY_PUBLIC_KEY=file:/config/keys/periphery.pub
+      # Auto-create the server entry for this host's agent on first startup.
+      # NOTE: container_name, not the service name — this Compose version only
+      # registers the container_name as a DNS alias on the default network.
+      - KOMODO_FIRST_SERVER_NAME=general
+      - KOMODO_FIRST_SERVER_ADDRESS=https://komodo-periphery:8120
+      - KOMODO_DISABLE_USER_REGISTRATION=true
+      - KOMODO_ENABLE_NEW_USERS=false
+      - KOMODO_TITLE=Komodo
+    volumes:
+      # Core / Periphery communication keys (PKI, auto-generated)
+      - komodo-keys:/config/keys
+      # Core's own dated DB backups; the live Mongo state is backed up
+      # separately by backup-general (see EXCLUDED_MOUNTS there)
+      - /etc/komodo/backups:/backups
+
+  komodo-periphery:
+    image: ghcr.io/moghtech/komodo-periphery@sha256:fa3f1a641a265216066676950d5eecdf506955a7bafe2f01996135ae93115cd5
+    container_name: komodo-periphery
+    init: true # Komodo v2: required, prevents zombie process build-up
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      - komodo-core
+    environment:
+      - TZ=America/Los_Angeles
+    volumes:
+      # Core / Periphery communication keys (PKI, auto-generated)
+      - komodo-keys:/config/keys
+      # Management agent needs write access to Docker (see note above)
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Let Periphery see host processes outside of containers
+      - /proc:/proc
+      # Periphery root dir; must match inside and outside the container.
+      # Only used by Komodo-managed stacks/repos — not used in this
+      # monitoring-only setup.
+      - /etc/komodo:/etc/komodo
+
+volumes:
+  komodo-mongo-data:
+  komodo-mongo-config:
+  komodo-keys:
