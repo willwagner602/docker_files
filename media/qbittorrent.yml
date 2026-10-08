@@ -33,14 +33,14 @@ services:
       - VPN_NAMESERVERS= #
       - VPN_PIA_USER=${PIA_USER} #
       - VPN_PIA_PASS=${PIA_PASS} #
-      - VPN_PIA_PREFERRED_REGION #
+      - VPN_PIA_PREFERRED_REGION=ca_vancouver #
       - VPN_PIA_DIP_TOKEN=no #
       - VPN_PIA_PORT_FORWARD_PERSIST=false #
       - PRIVOXY_ENABLED=false #
       - UNBOUND_ENABLED=false #
       - UNBOUND_NAMESERVERS #
     volumes:
-      - /bigdisk/qbittorrent/config:/config
+      - /media/qbittorrent/config:/config
       - /bigdisk/plex:/data
     cap_add:
       - NET_ADMIN
