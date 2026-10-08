@@ -16,12 +16,19 @@ Docker Compose definitions for the services running on the home & media servers.
 | `sabnzbd.yml` | SABnzbd | Independent download service. |
 | `qbittorrent.yml` | qBittorrent | Independent download service. |
 | `postgres.yml` | PostgreSQL | Separate database service. |
-| `autoheal.yml` | Autoheal | Watches Docker containers through the Docker socket. |
+| `autoheal.yml` | Autoheal | Restarts unhealthy containers via a dedicated socket-proxy limited to list + restart. |
 | `health-notify-media.yml` | Health notifier | Watches all containers through the Docker socket; the media role adds disk, queue, Arr, and HTTP checks. |
 | `frigate.yml` | Frigate | Independent NVR service. |
 | `photo-uploader.yml` | Photo uploader | Uses a persistent SQLite volume plus a read-only photo-library bind mount. |
 
 `media/compose.yaml` is the canonical media-server deployment. It sets the stable project name `media` and includes the component files, so the complete deployment can be managed without `-f` or `-p`. The ARR services remain in one component file because they communicate using Compose service names.
+
+Autoheal does not mount the raw docker socket: it talks to a dedicated
+socket-proxy (`autoheal-socket-proxy`) limited to listing containers and
+restarting them (`CONTAINERS=1`, `ALLOW_RESTARTS=1`, everything else denied).
+This grants only the restart capability Autoheal needs rather than full daemon
+control. The health-notify socket-proxy is read-only by contrast (`POST=0`,
+`ALLOW_RESTARTS=0`).
 
 ### `general/`
 
