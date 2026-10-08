@@ -29,7 +29,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/home/wbw/docker /home/wbw/etc-pihole /home/wbw/etc-dnsmasq.d /home/wbw/data /home/wbw/letsencrypt /home/wbw/mongo /home/wbw/unifi-config /home/wbw/couchdb /home/wbw/job-digest-state /home/wbw/secrets.json /home/wbw/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/docker_files
+      - BACKUP_PATHS=/home/wbw/docker /home/wbw/etc-pihole /home/wbw/etc-dnsmasq.d /home/wbw/data /home/wbw/letsencrypt /home/wbw/mongo /home/wbw/unifi-config /home/wbw/couchdb /home/wbw/mindwtr /home/wbw/job-digest-state /home/wbw/secrets.json /home/wbw/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/docker_files
       # Named volumes to back up (logical compose names).
       - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys
       # Service mounts deliberately NOT backed up, with the reason:
@@ -58,6 +58,7 @@ services:
       - /home/wbw/mongo:/backup-roots/home/wbw/mongo:ro
       - /home/wbw/unifi-config:/backup-roots/home/wbw/unifi-config:ro
       - /home/wbw/couchdb:/backup-roots/home/wbw/couchdb:ro
+      - /home/wbw/mindwtr:/backup-roots/home/wbw/mindwtr:ro
       - /home/wbw/job-digest-state:/backup-roots/home/wbw/job-digest-state:ro
       - /home/wbw/secrets.json:/backup-roots/home/wbw/secrets.json:ro
       - /home/wbw/health-notify/general:/backup-roots/home/wbw/health-notify/general:ro
