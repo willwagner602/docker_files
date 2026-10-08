@@ -41,6 +41,9 @@ services:
         max-file: "3"
     depends_on:
       - komodo-mongo
+    networks:
+      - default
+      - komodo-alerts
     ports:
       - "9120:9120"
     environment:
@@ -94,6 +97,10 @@ services:
       # Only used by Komodo-managed stacks/repos — not used in this
       # monitoring-only setup.
       - /etc/komodo:/etc/komodo
+
+networks:
+  komodo-alerts:
+    name: general-komodo-alerts
 
 volumes:
   komodo-mongo-data:

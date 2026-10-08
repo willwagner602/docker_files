@@ -131,6 +131,29 @@ socket-proxy deliberately does not provide. Komodo's Mongo state and agent keys
 are covered by the backup services; Komodo's own alerting is configured in the
 UI (Settings / Alerters).
 
+### Telegram Custom Alerter bridge
+
+`general/telegram-alerter.yml` adds the community
+[`komodo-telegram-alerter`](https://github.com/SashaBusinaro/komodo-telegram-alerter)
+service to the general Compose stack. It is attached only to the internal
+`general-komodo-alerts` network shared with Komodo Core; port 3000 is not
+published on the host. In Komodo, create a Custom Alerter with endpoint:
+
+```text
+http://komodo-telegram-alerter:3000/alert?token=[[TELEGRAM_BOT_TOKEN]]&chat_id=[[TELEGRAM_CHAT_ID]]
+```
+
+Create `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` as secret variables in
+Komodo's Settings / Variables. These values must match the bot and destination
+chat used by the existing health notifier. The bridge's README documents these
+credentials in the endpoint URL and does not document endpoint authentication,
+so keep it isolated on this network and never publish port 3000. The upstream
+Compose example uses the mutable `latest` image tag and provides no healthcheck;
+review/pin a verified image digest before relying on it for production alerts.
+
+The bridge image itself does not run in the backup coverage test because it has
+no persistent mounts.
+
 ## Backups
 
 Each stack runs a `backup` service (`general/backup.yml`, `media/backup.yml`) that
