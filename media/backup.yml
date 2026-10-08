@@ -30,7 +30,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /bigdisk/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps /home/wbw/docker_files
+      - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /media/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps /home/wbw/docker_files
       # No named volumes are in use by any media service.
       - BACKUP_VOLUMES=
       # Service mounts deliberately NOT backed up, with the reason:
@@ -64,7 +64,7 @@ services:
       - /bigdisk/plex/stash/config:/backup-roots/bigdisk/plex/stash/config:ro
       - /bigdisk/plex/stash/metadata:/backup-roots/bigdisk/plex/stash/metadata:ro
       - /bigdisk/prowlarr:/backup-roots/bigdisk/prowlarr:ro
-      - /bigdisk/qbittorrent/config:/backup-roots/bigdisk/qbittorrent/config:ro
+      - /media/qbittorrent/config:/backup-roots/media/qbittorrent/config:ro
       - /bigdisk/sabnzbd/config:/backup-roots/bigdisk/sabnzbd/config:ro
       - /bigdisk/db-dumps:/backup-roots/bigdisk/db-dumps:ro
       - /home/wbw/docker_files:/backup-roots/home/wbw/docker_files:ro
