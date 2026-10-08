@@ -1,11 +1,68 @@
+# Autoheal: restart containers whose Docker healthcheck reports unhealthy.
+#
+# Autoheal itself only lists containers (GET /containers/json) and restarts
+# them (POST /containers/{id}/restart). Instead of mounting the raw docker
+# socket — which would grant full daemon control — it goes through a dedicated
+# socket-proxy with a narrow endpoint set. LinuxServer's ALLOW_RESTARTS switch
+# also permits stop and kill; this proxy cannot grant restart without those
+# operations. See health-notify-media.yml for the read-only variant.
 services:
+  autoheal-socket-proxy:
+    image: lscr.io/linuxserver/socket-proxy@sha256:69c389630d3e01222be5f782457a8c2e9b5e55638afad349a26ac027a2ecb2ff
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      # List containers, then permit Docker's combined stop/restart/kill group.
+      # Autoheal itself calls restart only; the proxy cannot split this group.
+      - CONTAINERS=1
+      - ALLOW_RESTARTS=1
+      - POST=0
+      # Explicitly deny every other endpoint group.
+      - EVENTS=0
+      - AUTH=0
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=0
+      - INFO=0
+      - NETWORKS=0
+      - NODES=0
+      - PLUGINS=0
+      - SECRETS=0
+      - SERVICES=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0
+      - VOLUMES=0
+      - ALLOW_LOGS=0
+      - ALLOW_PAUSE=0
+      - ALLOW_START=0
+      - ALLOW_STOP=0
+      - ALLOW_TOP=0
+      - ALLOW_UNPAUSE=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"
+    # Same caveat as health-notify: no no-new-privileges because the image
+    # entrypoint needs setuid/setgid; cap_drop ALL alone keeps it running.
+    cap_drop:
+      - ALL
+
   autoheal:
     image: willfarrell/autoheal:latest@sha256:5b232c5aee716d0f23176b7f26d8ae841bf50074ccf851072c33f13e6125f216
     container_name: autoheal
     restart: unless-stopped
+    depends_on:
+      - autoheal-socket-proxy
     environment:
+      - DOCKER_SOCK=tcp://autoheal-socket-proxy:2375
       - AUTOHEAL_CONTAINER_LABEL=autoheal
       - AUTOHEAL_INTERVAL=30
       - AUTOHEAL_START_PERIOD=90
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
