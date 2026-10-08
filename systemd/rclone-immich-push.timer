@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Immich originals -> Google Drive sync periodically
+
+[Timer]
+# Host runs in UTC; daily = 00:00 UTC (17:00 PDT).
+OnCalendar=daily
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

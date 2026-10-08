@@ -180,6 +180,36 @@ state back (re-apply ownership where the service is picky — CouchDB needs
 Off-box replication is a follow-up: point `rclone move` (or `restic`) at the
 "Server Backups" directory once a Google Drive remote is configured.
 
+### Google Drive sync
+
+The `gdrive:` remote (`~/.config/rclone/rclone.conf`) backs two host-level
+one-way syncs. Their systemd units live in `systemd/` (not compose services)
+and are installed manually — they run on the host, not in containers:
+
+- `rclone-gdrive-sync` — Drive → `/bigdisk/google-drive`, triggered every
+  minute. This mirror is how Google Photos reaches immich (`media/immich.yml`
+  mounts `Photos/` read-only) and how the backup zips above land on Drive. It
+  excludes `Immich Library/`, which is push-only (see below), so the pushed
+  mirror isn't copied back onto `/bigdisk`.
+- `rclone-immich-push` — all Immich originals
+  (`/bigdisk/immich/library/upload/<user-uuid>`, ~1.2 TiB) →
+  `gdrive:Immich Library`, daily. Installed but deliberately left disabled:
+  the 2 TiB Drive plan has ~1.1 TiB free, short of the full mirror. Once
+  Drive space is cleared, enable with
+  `sudo systemctl enable --now rclone-immich-push.timer`. The first run takes
+  days (Google caps API uploads around 750 GiB/day);
+  `--drive-stop-on-upload-limit` ends each run at the cap and the timer
+  resumes from there.
+
+Install after cloning or editing:
+
+```sh
+cd /home/wbw/docker_files
+sudo cp systemd/rclone-gdrive-sync.service systemd/rclone-immich-push.service \
+    systemd/rclone-immich-push.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
 ## CouchDB backup and restore
 
 `/home/wbw/couchdb/data` is the authoritative state (databases and indexes); `/home/wbw/couchdb/etc` holds the `local.d` configuration, including the admin credential hash written on first start. Existing host backups of `/home/wbw` therefore cover CouchDB, with one consistency requirement: a copy taken while the container is running can capture a database mid-write. For a consistent copy, stop the service first:
