@@ -210,7 +210,7 @@ The token is the whole account, which drives three consequences worth knowing be
 - **Rotation orphans data.** Changing the token and recreating the container leaves the previous dataset on disk under the old token's hash; the new token starts empty. Move `<old-sha256>.json` onto the new key deliberately if you need to keep the data.
 - **An unset variable fails closed.** The server refuses to start when no allowlist is configured, so a missing `MINDWTR_CLOUD_AUTH_TOKENS` takes the service down rather than opening the instance to any token.
 
-Each dataset is a single JSON file under `/home/wbw/mindwtr` (`<sha256-of-token>.json`), plus a `.locks` directory used for write serialization. Back up the directory while the service is stopped for a consistent copy.
+Each dataset is a single JSON file under `/home/wbw/mindwtr` (`<sha256-of-token>.json`), plus a `.locks` directory used for write serialization. The directory is covered by the general stack's daily backup (`general/backup.yml`), which copies it live; for a guaranteed-consistent copy, stop the service first as described under [Backups](#backups).
 
 ## Validation
 
