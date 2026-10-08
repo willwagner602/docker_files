@@ -45,10 +45,12 @@ services:
       #   /bigdisk/immich/postgres, /bigdisk/plex/database — live database
       #     data dirs, replaced by the pg_dumpall exports in /bigdisk/db-dumps.
       #   /path/to/photos — photo-uploader source, read-only input.
+      #   /bigdisk/google-drive/Photos — immich's read-only view of the
+      #     Google Drive mirror; regenerable from Google, so not backed up.
       #   /proc — host process table mounted for the Komodo agent.
       #   /etc/komodo — Periphery root dir for Komodo-managed stacks; empty
       #     in this monitoring-only setup.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /bigdisk/plex /bigdisk/plex/tv /bigdisk/plex/movies /bigdisk/plex/downloads/xxx-inbox /bigdisk/plex/downloads/whisparr /bigdisk/plex/xxx /bigdisk/plex/stash/generated /bigdisk/plex/stash/cache /bigdisk/frigate /bigdisk/immich/library /bigdisk/immich/model-cache /bigdisk/immich/postgres /bigdisk/plex/database /path/to/photos /proc /etc/komodo
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /bigdisk/plex /bigdisk/plex/tv /bigdisk/plex/movies /bigdisk/plex/downloads/xxx-inbox /bigdisk/plex/downloads/whisparr /bigdisk/plex/xxx /bigdisk/plex/stash/generated /bigdisk/plex/stash/cache /bigdisk/frigate /bigdisk/immich/library /bigdisk/immich/model-cache /bigdisk/immich/postgres /bigdisk/plex/database /path/to/photos /proc /etc/komodo /bigdisk/google-drive/Photos
       # Backup paths that no service mounts (repo copy for restorability).
       - EXTRA_BACKUP_PATHS=/home/wbw/docker_files
     volumes:
