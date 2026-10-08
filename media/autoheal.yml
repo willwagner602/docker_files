@@ -1,10 +1,11 @@
 # Autoheal: restart containers whose Docker healthcheck reports unhealthy.
 #
-# Autoheal only needs to list containers (GET /containers/json) and restart
+# Autoheal itself only lists containers (GET /containers/json) and restarts
 # them (POST /containers/{id}/restart). Instead of mounting the raw docker
 # socket — which would grant full daemon control — it goes through a dedicated
-# socket-proxy limited to exactly those two capabilities. See
-# health-notify-media.yml for the read-only variant (POST=0, ALLOW_RESTARTS=0).
+# socket-proxy with a narrow endpoint set. LinuxServer's ALLOW_RESTARTS switch
+# also permits stop and kill; this proxy cannot grant restart without those
+# operations. See health-notify-media.yml for the read-only variant.
 services:
   autoheal-socket-proxy:
     image: lscr.io/linuxserver/socket-proxy@sha256:69c389630d3e01222be5f782457a8c2e9b5e55638afad349a26ac027a2ecb2ff
@@ -15,7 +16,8 @@ services:
         max-size: "10m"
         max-file: "3"
     environment:
-      # Minimum surface: list containers + restart. Everything else denied.
+      # List containers, then permit Docker's combined stop/restart/kill group.
+      # Autoheal itself calls restart only; the proxy cannot split this group.
       - CONTAINERS=1
       - ALLOW_RESTARTS=1
       - POST=0
