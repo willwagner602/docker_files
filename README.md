@@ -59,8 +59,6 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | --- | --- |
 | `general/.env.example`, `media/.env.example` | Templates for the required per-stack variables. Copy to `.env` in the same directory and replace the values; `.env` is gitignored. |
 | `scripts/health-notify.sh` | Health-notification script used by both stacks' notifier containers; mounted read-only into the container. |
-| `scripts/komodo-mcp.sh` | Read-only Komodo MCP server for Polytoken agents, for asking "is media up?" or "which containers are unhealthy?" without SSH. Install it as `~/.local/bin/komodo-mcp` and register it under `mcp_servers` in Polytoken's global config; it reads its Komodo API key and secret from the environment or `~/.config/komodo-mcp/credentials`. Not part of any compose stack. |
-| `scripts/komodo-probe.sh` | Diagnostic: calls each Komodo read endpoint to report which ones a given API key may actually use. Komodo keys carry no permissions of their own, so this is how the read-only claim is checked. Prints the key prefix, never the secret. |
 | `scripts/tests/health-notify/` | Test suite for `health-notify.sh`, with stub binaries under `bin/`. Run with `make test`. |
 | `Makefile` | Local entry points: `make test`, `make validate`, `make check`. |
 | `.github/workflows/ci.yml` | CI: runs the shell test suite and validates both compose stacks. |
