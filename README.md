@@ -132,6 +132,51 @@ socket-proxy deliberately does not provide. Komodo's Mongo state and agent keys
 are covered by the backup services; Komodo's own alerting is configured in the
 UI (Settings / Alerters).
 
+### Komodo via MCP
+
+The Komodo UI is for people; the repo also exposes a read-only slice of Komodo
+to Polytoken agents over MCP, so an agent can answer "is media up?", "which
+containers are unhealthy?", or "what image is running?" without SSH and
+without the raw docker socket.
+
+Komodo has no first-party MCP server. `scripts/komodo-mcp.sh` launches the
+third-party MP-Tool server (https://github.com/MP-Tool/komodo-mcp-server),
+pinned by image digest, and the server is registered as `komodo` in Polytoken's
+global config (`~/.config/polytoken/config.yaml`):
+
+```yaml
+mcp_servers:
+  komodo:
+    transport: stdio
+    command: sh
+    args: ["/home/wbw/work/docker_files/scripts/komodo-mcp.sh"]
+    pass_env: [HOME, PATH, LANG, TMPDIR]
+```
+
+**Read-only surface.** The server has no read-only switch on stdio: the
+"anonymous callers are read-only" behaviour documented upstream applies only to
+its HTTP transport, and stdio is never authenticated. The launcher therefore
+builds the surface from a deny-by-default category allowlist
+(`MCP_TOOLS_ALLOWED_CATEGORIES=container,server,docker,config`) plus an
+explicit exclusion of the four mutating tools those categories contain
+(`MCP_TOOLS_EXCLUDED_TOOLS`). That yields 15 tools, none of which mutate
+anything: container and server list/inspect/logs/stats, docker image, network
+and volume inventory, and a health check. If the image digest is ever bumped,
+re-check the tool list — a new mutating tool inside an allowed category would
+otherwise slip through.
+
+**Credentials.** The launcher reads the Komodo API key and secret from the
+environment (`KOMODO_API_KEY`/`KOMODO_API_SECRET`, or the
+`KOMODO_SERVICE_KEY`/`KOMODO_SERVICE_SECRET` names `~/.bashrc` exports), or
+from a mode-600 file at `~/.config/komodo-mcp/credentials`. It passes Docker
+only the variable *names* (`-e KOMODO_API_KEY`), so the values travel in the
+process environment and never appear in `ps` output or in the agent's view.
+Polytoken's `pass_env` deliberately omits the `KOMODO_*` variables, so the file
+is the path used at runtime.
+
+Verify with `polytoken doctor` (expect `mcp — server "komodo": connected, 15
+tools`) or by running a tool through `polytoken exec`.
+
 ## Backups
 
 Each stack runs a `backup` service (`general/backup.yml`, `media/backup.yml`) that
