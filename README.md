@@ -132,9 +132,11 @@ al., configured in the UI), per-container logs, and restart controls.
   disabled.
 - `media/komodo.yml` runs the Periphery agent in outbound mode: it connects to
   Core on general (`ws://10.0.0.16:9120`) and opens no inbound port on media.
-  One-time setup: log in to Core, create an onboarding key with privileged mode
-  (Settings / Onboarding), put it in `media/.env` as `PERIPHERY_ONBOARDING_KEY`,
-  then `docker compose up -d komodo-periphery`.
+  One-time setup: log in to Core and open Settings / Onboarding. For a new
+  `media` server, create a least-privilege onboarding key, put it in `media/.env`
+  as `PERIPHERY_ONBOARDING_KEY`, and run `docker compose up -d komodo-periphery`.
+  Use a privileged onboarding key only when replacing the expected key for an
+  existing Core server record.
 
 The Periphery agents mount the raw docker socket by design: they are management
 agents that need write access (restart/stop, log reads), which the read-only

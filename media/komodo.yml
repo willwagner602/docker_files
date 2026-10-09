@@ -3,10 +3,13 @@
 # no inbound port is opened on media.
 #
 # One-time setup after Core is running on general:
-#   1. Log in to the Core UI (http://10.0.0.16:9120) as the admin.
-#   2. Settings / Onboarding -> create a key, enable privileged mode.
-#   3. Put it in media/.env as PERIPHERY_ONBOARDING_KEY, then
+#   1. Log in to the Core UI (http://10.0.0.16:9120) as the admin and open
+#      Settings / Onboarding.
+#   2. For a new server, create a least-privilege onboarding key. Put it in
+#      media/.env as PERIPHERY_ONBOARDING_KEY, then run:
 #      docker compose up -d komodo-periphery
+#   3. Use a privileged onboarding key only to replace the expected public key
+#      for an existing Core server record.
 # The agent registers itself as the server named by PERIPHERY_CONNECT_AS.
 services:
   komodo-periphery:

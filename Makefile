@@ -25,6 +25,7 @@ help:
 test:
 	@sh scripts/tests/health-notify/tests.sh
 	@sh scripts/tests/backup/tests.sh
+	@sh media/backblaze-wine/tests/tests.sh
 
 validate:
 	@set -eu; \
