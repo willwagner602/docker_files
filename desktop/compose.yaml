@@ -1,0 +1,19 @@
+name: desktop
+
+# The Compose stack for this machine — the host Polytoken runs on.
+#
+# Layering mirrors general/ and media/ (one file per service, an aggregator per
+# group) with one extra layer: MCP servers are grouped under mcp.yaml rather
+# than listed here directly, because they are a different class of service from
+# the infrastructure the other stacks manage — local agent tooling — and are
+# expected to grow.
+#
+#   compose.yaml    this file: the whole machine
+#   mcp.yaml        every MCP server on this machine
+#   komodo-mcp.yml  a single MCP server
+#
+# NOTE: general/ and media/ are separate stacks deployed to their own hosts.
+# Nothing in this directory is deployed to either.
+
+include:
+  - mcp.yaml

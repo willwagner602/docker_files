@@ -53,15 +53,26 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 
+### `desktop/`
+
+| Compose file | Services | Why they are grouped |
+| --- | --- | --- |
+| `mcp.yaml` | — (aggregation only) | Groups every MCP server running on this machine so the layer above can include them as a unit. Each server lives in its own file. |
+| `komodo-mcp.yml` | Komodo MCP | Read-only Komodo access for Polytoken agents, over loopback HTTP. Needs only outbound reach to Komodo Core and no Docker socket. |
+
+`desktop/compose.yaml` is the canonical workstation deployment. It sets the stable project name `desktop` and includes `mcp.yaml`, which in turn includes each MCP server file. That is one layer deeper than the other two stacks: MCP servers are agent tooling rather than infrastructure, they are expected to grow, and keeping them behind an aggregation file means adding one is a one-line change there instead of an edit to the top-level file.
+
+`general/` and `media/` are deployed to their own hosts. Nothing in `desktop/` is deployed to either, and nothing here is on the general or media stack.
+
 ### Other paths
 
 | Path | Purpose |
 | --- | --- |
-| `general/.env.example`, `media/.env.example` | Templates for the required per-stack variables. Copy to `.env` in the same directory and replace the values; `.env` is gitignored. |
+| `general/.env.example`, `media/.env.example`, `desktop/.env.example` | Templates for the required per-stack variables. Copy to `.env` in the same directory and replace the values; `.env` is gitignored. |
 | `scripts/health-notify.sh` | Health-notification script used by both stacks' notifier containers; mounted read-only into the container. |
 | `scripts/tests/health-notify/` | Test suite for `health-notify.sh`, with stub binaries under `bin/`. Run with `make test`. |
 | `Makefile` | Local entry points: `make test`, `make validate`, `make check`. |
-| `.github/workflows/ci.yml` | CI: runs the shell test suite and validates both compose stacks. |
+| `.github/workflows/ci.yml` | CI: runs the shell test suite and validates every compose stack. |
 
 ## Running a service
 
@@ -141,6 +152,33 @@ agents that need write access (restart/stop, log reads), which the read-only
 socket-proxy deliberately does not provide. Komodo's Mongo state and agent keys
 are covered by the backup services; Komodo's own alerting is configured in the
 UI (Settings / Alerters).
+
+### Agent access to Komodo
+
+`desktop/komodo-mcp.yml` runs a read-only MCP server so agent sessions can ask
+"is media up?" or "which containers are unhealthy?" without SSH. It runs on the
+workstation, publishes its port to `127.0.0.1` only, and reaches Core over the
+LAN — it is not part of the general or media deployment and needs no Docker
+socket.
+
+Registering it is separate from running it: the stack starts the service, and
+Polytoken's global config points at the endpoint.
+
+```yaml
+# ~/.config/polytoken/config.yaml
+mcp_servers:
+  komodo:
+    transport: http
+    url: http://127.0.0.1:8000/mcp
+```
+
+Check the tool surface with `polytoken doctor` (expect the server to report its
+tools). Two independent layers keep it read-only: `MCP_AUTH_ENABLED=false` makes
+anonymous HTTP callers read-only upstream, and the category allowlist plus
+explicit exclusions in `desktop/komodo-mcp.yml` prune the mutating tools out of
+the list the model sees. Komodo API keys carry no permissions of their own — a
+key is only as narrow as the grants attached to its user, so check what a key
+can actually do before relying on it.
 
 ## Backups
 
@@ -254,18 +292,18 @@ Each dataset is a single JSON file under `/home/wbw/mindwtr` (`<sha256-of-token>
 
 ## Validation
 
-Validate both complete application models before deploying:
+Validate the complete application model of every stack before deploying:
 
 ```sh
 make validate
 ```
 
 This mirrors what CI runs. It copies each stack's `.env.example` into a throwaway
-directory as `.env`, then runs `docker compose config --quiet` for `media/` and
-`general/` there — so your real `.env` files are never touched. Both stacks
-require env values (`${VAR:?...}`); `make validate` supplies them from the
-examples, which is why a bare `cd general && docker compose config` fails on a
-fresh checkout without a `.env`.
+directory as `.env`, then runs `docker compose config --quiet` for every stack in
+`STACKS` (`general/`, `media/`, `desktop/`) there — so your real `.env` files are
+never touched. All three require env values (`${VAR:?...}`); `make validate`
+supplies them from the examples, which is why a bare `cd general && docker compose
+config` fails on a fresh checkout without a `.env`.
 
 The repository includes multiple host-specific configurations, so successful
 syntax validation does not guarantee that every bind mount, device, credential, or external build context is available on another machine.
@@ -286,7 +324,12 @@ the working tree.
 
 GitHub Actions runs both checks on every push and pull request (see
 `.github/workflows/ci.yml`): `shell-tests` runs the suite, and `compose-validate`
-strictly validates each stack. Note that `docker compose config` validates
+strictly validates each stack. `make validate` needs the scratch directory it
+creates to be readable by the Docker CLI; if Docker is installed as a snap, it
+is confined to your home directory, so a `TMPDIR` outside `$HOME` (such as
+`/tmp`) fails. The default already works — set `COMPOSE_VALIDATE_TMPDIR` only if
+you are redirecting it somewhere under `$HOME`. Note that `docker compose config`
+validates
 *configuration*, not runtime behavior — it would not catch something like a
 crash-looping container. See `.env.example` in each stack directory for the
 required variables.

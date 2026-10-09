@@ -1,0 +1,69 @@
+# Komodo MCP — read-only Komodo access for Polytoken agents
+# (https://github.com/MP-Tool/komodo-mcp-server)
+#
+# Komodo has no first-party MCP server; this runs MP-Tool's third-party server,
+# pinned by image digest, as a long-lived local service on this machine.
+#
+# This is a *client-side* service: it runs on the machine where Polytoken runs,
+# not on the hosts being managed. It needs only outbound reach to Komodo Core
+# and does not need the Docker socket. Nothing here is deployed to general or
+# media.
+#
+# Transport: HTTP, not stdio. An earlier iteration launched this image with
+# `docker run --rm -i` once per Polytoken connection. A Compose service cannot
+# be spawned per-connection, and the stdio path leaks a container whenever a
+# session is torn down abruptly — `--rm` only fires on a clean client exit, and
+# ten orphans accumulated in under an hour. A persistent service has one
+# lifetime and no per-session cleanup to get wrong.
+#
+# Read-only surface, two independent layers:
+#   1. MCP_AUTH_ENABLED=false makes anonymous HTTP callers read-only upstream:
+#      write, exec, and delete tools are hidden and rejected. That is the
+#      documented behaviour for this transport with auth disabled.
+#   2. The category allowlist plus explicit exclusions prune the tool list
+#      further, so the model never sees a mutating tool at all. Categories mix
+#      read and write tools — allowing "container" also allows
+#      komodo_container_action — which is why the allowlist is combined with
+#      explicit exclusions rather than used alone.
+# Together they yield exactly the read-only tools this server exposes:
+# komodo_container_list, komodo_container_inspect, komodo_container_logs,
+# komodo_container_search_logs, komodo_server_list, komodo_server_info,
+# komodo_server_stats, komodo_docker_image_list, komodo_docker_image_inspect,
+# komodo_docker_image_history, komodo_docker_network_list,
+# komodo_docker_network_inspect, komodo_docker_volume_list,
+# komodo_docker_volume_inspect, komodo_health_check.
+#
+# Exposure: the port is published to 127.0.0.1 only, never the LAN. Polytoken
+# runs on this host, so loopback is sufficient, and an unauthenticated MCP
+# endpoint must not be reachable from the network.
+
+services:
+  komodo-mcp:
+    image: ghcr.io/mp-tool/komodo-mcp-server@sha256:3030d0c3f5edaf2023c46856e3fc20961d3dec2d7ce5a1da0b67913397d22edd
+    container_name: komodo-mcp
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      # Loopback only — Polytoken runs on this host. See the exposure note above.
+      - "127.0.0.1:8000:8000"
+    environment:
+      - TZ=America/Los_Angeles
+      - MCP_TRANSPORT=http
+      # Disabling auth is what makes anonymous callers read-only upstream. Do not
+      # flip this on without also supplying a real credential: with auth enabled
+      # and none configured, every caller is simply unauthenticated.
+      - MCP_AUTH_ENABLED=false
+      - KOMODO_URL=${KOMODO_URL:?set in desktop/.env}
+      - KOMODO_API_KEY=${KOMODO_API_KEY:?set in desktop/.env}
+      - KOMODO_API_SECRET=${KOMODO_API_SECRET:?set in desktop/.env}
+      # See the two-layer read-only note above. A variable that is set but empty
+      # is not the same as unset here: this server treats an unset allowlist as
+      # "allow all", so the defaults are supplied explicitly.
+      - MCP_TOOLS_ALLOWED_CATEGORIES=${MCP_TOOLS_ALLOWED_CATEGORIES:-container,server,docker,config}
+      - MCP_TOOLS_EXCLUDED_TOOLS=${MCP_TOOLS_EXCLUDED_TOOLS:-komodo_container_action,komodo_server_action,komodo_server_apply,komodo_server_delete}
