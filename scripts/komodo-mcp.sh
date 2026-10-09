@@ -1,10 +1,14 @@
 #!/bin/sh
 # Launch the Komodo MCP server in stdio mode, for use as a Polytoken MCP server.
 #
+# This is a *client-side* helper: it runs on the machine where Polytoken runs,
+# not on the hosts being managed. It needs only outbound reach to Komodo Core,
+# does not need the docker socket, and is deliberately not part of any compose
+# stack. Install it as `~/.local/bin/komodo-mcp`.
+#
 # Komodo has no first-party MCP server. This runs MP-Tool's third-party server
 # (https://github.com/MP-Tool/komodo-mcp-server) pinned by image digest, with
-# the write/exec/delete tool categories removed so the tool surface the model
-# sees is read-only. See README.md ("Komodo via MCP") for the rationale.
+# the mutating tools removed so the tool surface the model sees is read-only.
 #
 # The credential never reaches the model or the command line: this script reads
 # it from the environment (or a 600 credential file), exports it, and hands
@@ -12,7 +16,20 @@
 # in the process environment rather than in argv, where `ps` would show it.
 #
 # Usage:
-#   scripts/komodo-mcp.sh
+#   komodo-mcp
+#
+# Register it in Polytoken's global config (~/.config/polytoken/config.yaml):
+#
+#   mcp_servers:
+#     komodo:
+#       transport: stdio
+#       command: sh
+#       args: ["/home/wbw/.local/bin/komodo-mcp"]
+#       pass_env: [HOME, PATH, LANG, TMPDIR]
+#
+# pass_env deliberately omits the KOMODO_* variables, so at runtime the
+# credential file is the path used. Verify with `polytoken doctor` (expect
+# `mcp -- server "komodo": connected, 15 tools`).
 #
 # Credentials, in priority order:
 #   1. Environment: KOMODO_API_KEY / KOMODO_API_SECRET, or the equivalent
@@ -37,9 +54,18 @@
 # category allowlist. Categories mix read and write tools -- allowing
 # "container" also allows komodo_container_action -- so the allowlist is
 # combined with an explicit exclusion of the four mutating tools in the
-# allowed categories. Together they yield exactly the read-only tools listed in
-# README.md ("Komodo via MCP"). If the pinned image is ever bumped, re-check
-# that no mutating tool slipped into the allowed categories.
+# allowed categories. Together they yield exactly the 15 read-only tools in
+# this list, and nothing that mutates:
+#
+#   komodo_container_list / _inspect / _logs / _search_logs
+#   komodo_server_list / _info / _stats
+#   komodo_docker_image_list / _inspect / _history
+#   komodo_docker_network_list / _inspect
+#   komodo_docker_volume_list / _inspect
+#   komodo_health_check
+#
+# If the pinned image is ever bumped, re-check that no mutating tool slipped
+# into the allowed categories.
 #
 # Everything this script prints goes to stderr: stdout is the MCP transport and
 # must carry protocol frames only.
