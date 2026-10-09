@@ -47,8 +47,19 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    security_opt:
-      - no-new-privileges:true
+    # NOTE: deliberately no `no-new-privileges`. Docker on this host is the snap
+    # package, whose AppArmor-confined dockerd cannot make the profile transition
+    # that NNP requires, so *every* exec inside the container fails with
+    # "exec ...: operation not permitted" and the service crash-loops. Verified
+    # with a two-image matrix, each run with and without NNP: the pinned image
+    # (`node --version`) and `ubuntu:24.04` (`/bin/echo`) both run without NNP and
+    # both exit 255 with it. `apparmor=unconfined` and `cap_drop: ALL` do not
+    # change that — the denial comes from the daemon's own confinement, not the
+    # container's. This is a known snap limitation (snapd bug #1908448) and is why
+    # the other services in this repo also omit the flag. Dropping all
+    # capabilities is the hardening that does work here.
+    cap_drop:
+      - ALL
     ports:
       # Loopback only — Polytoken runs on this host. See the exposure note above.
       - "127.0.0.1:8000:8000"
