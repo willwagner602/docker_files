@@ -1,0 +1,7 @@
+mcp_servers:
+  unifi:
+    transport: stdio
+    command: uvx
+    args: ["unifi-network-mcp@latest"]
+    default_enabled: false
+    pass_env: ["PATH", "UNIFI_HOST", "UNIFI_USERNAME", "UNIFI_PASSWORD"]

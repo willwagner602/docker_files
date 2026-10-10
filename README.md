@@ -57,10 +57,11 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
-| `mcp.yaml` | — (aggregation only) | Groups every MCP server running on this machine so the layer above can include them as a unit. Each server lives in its own file. |
-| `komodo-mcp.yml` | Komodo MCP | Read-only Komodo access for Polytoken agents, over loopback HTTP. Needs only outbound reach to Komodo Core and no Docker socket. |
+| `mcp-servers/compose.yaml` | — (aggregation only) | Groups the Compose-backed MCP services. The directory also holds each Polytoken client fragment; the file formats serve different roles. |
+| `mcp-servers/komodo-mcp.yml` | Komodo MCP | Read-only Komodo access for Polytoken agents, over loopback HTTP. Needs only outbound reach to Komodo Core and no Docker socket. |
+| `mcp-servers/arr-mcp.yml` | ARR MCP | Local media-service MCP endpoint and dashboard, bound to loopback with persistent config and no Docker socket. Claim the dashboard before adding service API keys; writes are off by default. |
 
-`desktop/compose.yaml` is the canonical workstation deployment. It sets the stable project name `desktop` and includes `mcp.yaml`, which in turn includes each MCP server file. That is one layer deeper than the other two stacks: MCP servers are agent tooling rather than infrastructure, they are expected to grow, and keeping them behind an aggregation file means adding one is a one-line change there instead of an edit to the top-level file.
+`desktop/compose.yaml` is the canonical workstation deployment. It sets the stable project name `desktop` and includes `mcp-servers/compose.yaml`, which in turn includes each Compose-backed MCP service file. Keeping the services behind an aggregation file means adding one is a one-line change there instead of an edit to the top-level file.
 
 `general/` and `media/` are deployed to their own hosts. Nothing in `desktop/` is deployed to either, and nothing here is on the general or media stack.
 
@@ -155,7 +156,7 @@ UI (Settings / Alerters).
 
 ### Agent access to Komodo
 
-`desktop/komodo-mcp.yml` runs a read-only MCP server so agent sessions can ask
+`desktop/mcp-servers/komodo-mcp.yml` runs a read-only MCP server so agent sessions can ask
 "is media up?" or "which containers are unhealthy?" without SSH. It runs on the
 workstation, publishes its port to `127.0.0.1` only, and reaches Core over the
 LAN — it is not part of the general or media deployment and needs no Docker
@@ -172,13 +173,58 @@ mcp_servers:
     url: http://127.0.0.1:8000/mcp
 ```
 
-Check the tool surface with `polytoken doctor` (expect the server to report its
-tools). Two independent layers keep it read-only: `MCP_AUTH_ENABLED=false` makes
-anonymous HTTP callers read-only upstream, and the category allowlist plus
-explicit exclusions in `desktop/komodo-mcp.yml` prune the mutating tools out of
-the list the model sees. Komodo API keys carry no permissions of their own — a
-key is only as narrow as the grants attached to its user, so check what a key
-can actually do before relying on it.
+### Set up the desktop MCP servers
+
+This is the repeatable setup procedure for this workstation. `desktop/mcp-servers/`
+contains both Compose definitions for locally hosted MCP services and Polytoken
+client fragments. `desktop/mcp-servers/compose.yaml` includes the container
+services (Komodo and ARR); remote endpoints and stdio clients are registered
+directly in Polytoken.
+
+1. **Prepare local values.** Copy `desktop/.env.example` to `desktop/.env` and
+   replace the Komodo placeholders with the Core URL and API credentials. Keep
+   real values in the ignored `.env`, never the tracked example. The Komodo key
+   should belong to a user with only the needed read grants. Optional variables
+   for UniFi, Pi-hole, and Frigate are listed in the example; they are for the
+   Polytoken process, not Compose.
+2. **Validate before starting anything.** From the repository root run
+   `make validate`. This checks all Compose stacks using placeholder values and
+   does not start containers. To validate Polytoken's merged global config, run
+   `polytoken config validate`.
+3. **Start container-backed servers when ready.** From `desktop/`, run
+   `docker compose up -d komodo-mcp arr-mcp`. Komodo requires the values in
+   `.env`; ARR starts its own local dashboard, which must be claimed and
+   configured with the *ARR services' own API keys* before the MCP server can
+   use them. Its client endpoint is `http://127.0.0.1:6060/mcp`. Do not expose
+   these unauthenticated local services beyond loopback.
+4. **Register clients in Polytoken.** For each desired server, copy the
+   `mcp_servers` entry from its `desktop/mcp-servers/<name>.yaml` fragment into
+   `~/.config/polytoken/config.yaml` under the existing `mcp_servers:` mapping.
+   Merge entries; do not replace the whole config or create a second
+   `mcp_servers:` key. Keep `default_enabled: false` until credentials/endpoints
+   are configured and the
+   tool surface has been reviewed.
+5. **Provide credentials to stdio clients.** Polytoken does not automatically
+   read `desktop/.env`. Export the needed variables in the environment of the
+   Polytoken process (for example, via the shell or service-manager environment)
+   before connecting. The fragments list the variables passed to each client.
+   Home Assistant auth is configured in its Polytoken entry as
+   `auth.value: "Bearer <long-lived access token>"`; do not put the token in a
+   tracked file. GitHub authentication should be configured using the supported
+   Polytoken HTTP auth mechanism and a locally supplied credential.
+6. **Connect and check.** Run `polytoken config validate`, then inspect the
+   server tools with `polytoken doctor` and connect individually using `/mcp`.
+   Enable a server only after its endpoint and credentials work and you have
+   reviewed whether its tools can change or delete data.
+
+GitHub and Context7 are hosted HTTP endpoints; Home Assistant and ARR are HTTP
+endpoints on your network/host. Playwright, UniFi, Pi-hole, and Frigate are
+stdio clients. Pi-hole is configured read-only. ARR, UniFi, Home Assistant, and
+Frigate can expose mutating actions; review their tools before enabling them.
+For Komodo, `MCP_AUTH_ENABLED=false` plus the category allowlist and explicit
+tool exclusions in `desktop/mcp-servers/komodo-mcp.yml` restrict the exposed surface to
+read-only operations. Komodo API keys have no permissions of their own; the
+key's user grants determine access.
 
 ## Backups
 

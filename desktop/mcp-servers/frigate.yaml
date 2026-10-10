@@ -1,0 +1,7 @@
+mcp_servers:
+  frigate:
+    transport: stdio
+    command: uvx
+    args: ["--from", "git+https://github.com/jakekeeys/frigate-mcp", "frigate-mcp"]
+    default_enabled: false
+    pass_env: ["PATH", "FRIGATE_URL"]
