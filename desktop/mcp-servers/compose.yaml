@@ -2,7 +2,8 @@
 #
 # This is an aggregation layer, not a service definition. It exists so the MCP
 # servers running on this machine are grouped in one place and can be included
-# as a unit by desktop/compose.yaml.
+# as a unit by desktop/compose.yaml. Service include paths below are relative to
+# this file.
 #
 # One file per server, matching the convention in general/ and media/: the
 # service definition lives in its own file, and the layer above decides what is
@@ -15,3 +16,4 @@
 
 include:
   - komodo-mcp.yml
+  - arr-mcp.yml

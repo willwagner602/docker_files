@@ -1,0 +1,5 @@
+mcp_servers:
+  arr:
+    transport: http
+    url: http://127.0.0.1:6060/mcp
+    default_enabled: false

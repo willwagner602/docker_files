@@ -1,0 +1,5 @@
+mcp_servers:
+  github:
+    transport: http
+    url: https://api.githubcopilot.com/mcp/readonly
+    default_enabled: false
