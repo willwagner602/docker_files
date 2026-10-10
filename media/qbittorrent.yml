@@ -6,7 +6,9 @@ services:
     labels:
       - autoheal=true
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS --max-time 8 https://1.1.1.1 -o /dev/null || exit 1"]
+      # Check the local WebUI, not an external IP: VPN/provider outages should
+      # not mark a functioning qBittorrent process unhealthy and trigger autoheal.
+      test: ["CMD-SHELL", "curl -sS --max-time 8 -o /dev/null http://127.0.0.1:8080/"]
       interval: 60s
       timeout: 10s
       retries: 3
