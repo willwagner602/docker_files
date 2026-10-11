@@ -14,5 +14,6 @@ include:
   - couchdb.yml
   - backup.yml
   - komodo.yml
+  - telegram-alerter.yml
   - mindwtr.yml
   - health-notify-general.yml
