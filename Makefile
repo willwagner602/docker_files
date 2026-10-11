@@ -1,7 +1,7 @@
 # docker_files — local and CI entry points.
 #
 #   make test       run the shell test suite for scripts/health-notify.sh
-#   make validate   strict-interpolate both compose stacks (as CI does)
+#   make validate   strict-interpolate the compose stacks (as CI does)
 #   make check      both of the above
 #   make hooks      install the pre-push hook into .git/hooks (once per clone)
 #
@@ -11,20 +11,21 @@
 # real .env files are never touched and nothing is left behind.
 
 SHELL := /bin/sh
-STACKS := general media
+STACKS := general media desktop
 
 .PHONY: check test validate hooks help
 
 help:
 	@echo "Targets:"
 	@echo "  make test      Run the health-notify.sh and backup shell test suites"
-	@echo "  make validate  Strict-interpolate the compose stacks (general, media)"
+	@echo "  make validate  Strict-interpolate the compose stacks (general, media, desktop)"
 	@echo "  make check     test + validate (what CI runs)"
 	@echo "  make hooks     Install the pre-push hook into .git/hooks"
 
 test:
 	@sh scripts/tests/health-notify/tests.sh
 	@sh scripts/tests/backup/tests.sh
+	@sh media/backblaze-wine/tests/tests.sh
 
 validate:
 	@set -eu; \

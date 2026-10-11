@@ -1,0 +1,6 @@
+mcp_servers:
+  home-assistant:
+    transport: http
+    url: http://10.0.0.16:8123/api/mcp/assist
+    default_enabled: false
+    # Add auth.value: "Bearer <token>" in the global config before enabling.

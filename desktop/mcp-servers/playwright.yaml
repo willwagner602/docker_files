@@ -1,0 +1,6 @@
+mcp_servers:
+  playwright:
+    transport: stdio
+    command: npx
+    args: ["-y", "@playwright/mcp@latest"]
+    default_enabled: false

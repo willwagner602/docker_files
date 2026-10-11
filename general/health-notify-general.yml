@@ -66,8 +66,9 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:?Set TELEGRAM_CHAT_ID in .env}
       - STATE_DIR=/state
       - POLL_INTERVAL=60
-      - CERT_HOST=willwagner.me
+      - CERT_CONFIG_DIR=/npm-proxy-hosts
       - CERT_WARN_DAYS=30
     volumes:
       - ../scripts/health-notify.sh:/notify.sh:ro
+      - /home/wbw/data/nginx/proxy_host:/npm-proxy-hosts:ro
       - /home/wbw/health-notify/general:/state

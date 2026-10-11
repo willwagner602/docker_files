@@ -16,3 +16,4 @@ include:
   - sabnzbd.yml
   - backup.yml
   - komodo.yml
+  - backblaze-wine/compose.yaml

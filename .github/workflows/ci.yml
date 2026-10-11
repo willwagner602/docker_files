@@ -36,7 +36,7 @@ jobs:
         run: sh scripts/tests/backup/tests.sh
 
   # ---------------------------------------------------------------------------
-  # 2. Compose validation for both stacks.
+  # 2. Compose validation for every stack.
   #
   # `docker compose config` is a strict interpolation + structure check: it
   # fails on a missing required `${VAR:?...}` variable, a broken `include:`
@@ -44,7 +44,7 @@ jobs:
   # fresh checkout (which has no untracked .env) can be validated.
   #
   # These are throwaway placeholder values used only for interpolation; nothing
-  # is started or pulled. If you add a new required `${VAR:?...}` to either
+  # is started or pulled. If you add a new required `${VAR:?...}` to any
   # stack, add it here too and CI will stay green.
   # ---------------------------------------------------------------------------
   compose-validate:
@@ -53,7 +53,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        stack: [general, media]
+        stack: [general, media, desktop]
     steps:
       - uses: actions/checkout@v4
 
@@ -86,6 +86,10 @@ jobs:
           POSTGRES_PASSWORD: ci-placeholder
           PIA_USER: ci-placeholder
           PIA_PASS: ci-placeholder
+          # --- desktop stack (komodo-mcp) ---
+          KOMODO_URL: ci-placeholder
+          KOMODO_API_KEY: ci-placeholder
+          KOMODO_API_SECRET: ci-placeholder
         run: |
           set -eu
           # Use the example file if present so local conventions stay in sync,

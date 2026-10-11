@@ -1,0 +1,19 @@
+# MCP servers — local Model Context Protocol services for Polytoken agents.
+#
+# This is an aggregation layer, not a service definition. It exists so the MCP
+# servers running on this machine are grouped in one place and can be included
+# as a unit by desktop/compose.yaml. Service include paths below are relative to
+# this file.
+#
+# One file per server, matching the convention in general/ and media/: the
+# service definition lives in its own file, and the layer above decides what is
+# part of the stack. Add a server by dropping a <name>.yml next to this file and
+# listing it here.
+#
+# Registering a server with Polytoken is separate from this stack and is not
+# done here — each one is registered under `mcp_servers` in
+# ~/.config/polytoken/config.yaml. See README.md.
+
+include:
+  - komodo-mcp.yml
+  - arr-mcp.yml

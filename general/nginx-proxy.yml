@@ -17,6 +17,7 @@ services:
     networks:
       - npm
       - couchdb-net
+      - mindwtr-net
 
 
 networks:
@@ -25,4 +26,7 @@ networks:
     driver: bridge
   couchdb-net:
     name: couchdb-net
+    driver: bridge
+  mindwtr-net:
+    name: mindwtr-net
     driver: bridge

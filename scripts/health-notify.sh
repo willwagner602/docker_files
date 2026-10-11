@@ -6,7 +6,7 @@ POLL_INTERVAL=${POLL_INTERVAL:-60}
 STALL_SECONDS=${STALL_SECONDS:-3600}
 DISK_FREE_THRESHOLD=${DISK_FREE_THRESHOLD:-25}
 CERT_WARN_DAYS=${CERT_WARN_DAYS:-30}
-CERT_HOST=${CERT_HOST:-}
+CERT_CONFIG_DIR=${CERT_CONFIG_DIR:-}
 UNPACKERR_LOG=${UNPACKERR_LOG:-/unpackerr/unpackerr.log}
 
 ROLE=${ROLE:-media}
@@ -298,12 +298,19 @@ check_http() {
   fi
 }
 
-check_certificate() {
-  [ -n "$CERT_HOST" ] || return 0
-  cert_file="$STATE_DIR/certificate.pem"
-  if printf '\n' |
-    openssl s_client -servername "$CERT_HOST" -connect "$CERT_HOST:443" 2>/dev/null |
-    openssl x509 -out "$cert_file" 2>/dev/null; then
+check_certificate_host() {
+  host=$1
+  key=$(safe_name "$host")
+  cert_file="$STATE_DIR/certificate.$key.pem"
+  chain_file="$STATE_DIR/certificate.$key.chain"
+  verify_file="$STATE_DIR/certificate.$key.verify"
+  expiry=
+
+  if timeout 12 openssl s_client -showcerts -verify_return_error -verify_hostname "$host" \
+    -servername "$host" -connect "$host:443" </dev/null >"$chain_file" 2>"$verify_file" &&
+    grep -q 'Verify return code: 0 (ok)' "$chain_file" &&
+    sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p' "$chain_file" |
+      openssl x509 -out "$cert_file" 2>/dev/null; then
     expiry=$(openssl x509 -in "$cert_file" -noout -enddate 2>/dev/null || true)
     if printf '%s' "$expiry" | grep -q '^notAfter=' &&
       openssl x509 -in "$cert_file" -checkend "$((CERT_WARN_DAYS * 86400))" -noout >/dev/null 2>&1; then
@@ -315,22 +322,37 @@ check_certificate() {
     fi
   else
     status=failed
-    expiry=
   fi
 
-  previous=$(read_state "certificate.status")
+  previous=$(read_state "certificate.$key.status")
   if [ "$status" != "$previous" ]; then
     case "$status" in
-      warning) send "⚠️ TLS certificate for $CERT_HOST expires within $CERT_WARN_DAYS days ($expiry)." ;;
-      failed) send "⚠️ Could not verify the TLS certificate for $CERT_HOST." ;;
+      warning) send "⚠️ TLS certificate for $host expires within $CERT_WARN_DAYS days ($expiry)." ;;
+      failed) send "⚠️ TLS verification failed for $host (handshake, trust, or hostname mismatch)." ;;
       ok)
         [ "$previous" = "warning" ] || [ "$previous" = "failed" ] &&
-          send "✅ TLS certificate for $CERT_HOST is valid again."
+          send "✅ TLS certificate for $host verifies successfully again."
         ;;
     esac
-    write_state "certificate.status" "$status"
+    write_state "certificate.$key.status" "$status"
   fi
-  rm -f "$cert_file"
+  rm -f "$cert_file" "$chain_file" "$verify_file"
+}
+
+check_certificates() {
+  [ -n "$CERT_CONFIG_DIR" ] && [ -d "$CERT_CONFIG_DIR" ] || return 0
+  find "$CERT_CONFIG_DIR" -maxdepth 1 -type f -name '*.conf' -print 2>/dev/null |
+  while IFS= read -r config; do
+    grep -qE '^[[:space:]]*listen[[:space:]]+443([[:space:]]|ssl)' "$config" || continue
+    server_names=$(sed -nE 's/^[[:space:]]*server_name[[:space:]]+([^;]+);.*/\1/p' "$config")
+    for host in $server_names; do
+      case "$host" in
+        ''|\_*|\~*) continue ;;
+        *[!A-Za-z0-9.-]*) continue ;;
+      esac
+      check_certificate_host "$host"
+    done
+  done
 }
 
 reconcile_health
@@ -342,7 +364,7 @@ EVENT_PID=$!
 # The first `trap -` keeps the EXIT trap from re-entering this handler.
 trap 'trap - EXIT INT TERM; kill "$EVENT_PID" 2>/dev/null || true; exit 0' EXIT INT TERM
 
-echo "Monitoring Docker events for all containers ($ROLE role${CERT_HOST:+, TLS for $CERT_HOST})."
+echo "Monitoring Docker events for all containers ($ROLE role${CERT_CONFIG_DIR:+, TLS endpoints in $CERT_CONFIG_DIR})."
 
 while :; do
   if [ "$ROLE" = media ]; then
@@ -367,6 +389,6 @@ while :; do
     check_http "Immich" "http://immich-server:2283/api/server/ping"
     check_http "ImmichML" "http://immich-machine-learning:3003/ping"
   fi
-  check_certificate
+  check_certificates
   sleep "$POLL_INTERVAL"
 done

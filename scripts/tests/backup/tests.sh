@@ -22,6 +22,19 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../../.." && pwd)
 SCRIPT="$REPO/scripts/backup.sh"
 
+# Scratch directories are created under the repository rather than in /tmp.
+# The snap-packaged docker (Ubuntu's default here) is confined to $HOME and
+# cannot read /tmp, so a /tmp scratch copy makes `docker compose config` fail
+# with "no configuration file provided" — an error that looks like a real
+# config problem and hides whatever the suite was actually testing. An
+# explicitly set TMPDIR is still honored.
+scratch_root="${TMPDIR:-$REPO}"
+mktemp_d() { mktemp -d "$scratch_root/.test-scratch.XXXXXX"; }
+# Sweep any scratch dir left behind by an early exit. The individual tests
+# remove their own directories; this covers the paths where the suite stops
+# before reaching them.
+trap 'rm -rf "$scratch_root"/.test-scratch.*' EXIT INT TERM
+
 pass=0
 fail=0
 ok() { pass=$((pass + 1)); printf '  ok  %s\n' "$1"; }
@@ -36,6 +49,26 @@ command -v zip >/dev/null || { echo "FATAL: zip is required" >&2; exit 1; }
 command -v unzip >/dev/null || { echo "FATAL: unzip is required" >&2; exit 1; }
 [ -f "$SCRIPT" ] || { echo "FATAL: missing $SCRIPT" >&2; exit 1; }
 
+# The coverage tests below run `docker compose config` against a scratch copy of
+# each stack. If the docker CLI cannot read that copy at all, every stack fails
+# with the same misleading "no configuration file provided" error and the suite
+# looks like it is reporting config problems when it is really reporting a
+# confinement problem. Fail once, clearly, before that happens.
+docker_can_read() {
+  probe=$(mktemp_d)/compose.yaml
+  : > "$probe"
+  err=$(docker compose -f "$probe" config -q 2>&1)
+  case "$err" in
+    *"no such file or directory"*)
+      echo "FATAL: the docker CLI cannot read files under $scratch_root." >&2
+      echo "       Snap-packaged docker is confined to \$HOME and cannot read /tmp;" >&2
+      echo "       set TMPDIR to a directory under \$HOME, or use the distro docker." >&2
+      return 1 ;;
+  esac
+  return 0
+}
+docker_can_read || exit 1
+
 # ---------------------------------------------------------------------------
 # Part 1: retention
 # ---------------------------------------------------------------------------
@@ -49,7 +82,7 @@ run_prune() { # $1 = dest dir
 # daily window and their week (Sep 28 - Oct 4) is not strictly older than the
 # oldest daily's (Oct 4), so they are dropped; Sep 1 and Aug 1 are each the
 # newest zip of their (older) week and survive as weeklies.
-dirA=$(mktemp -d)
+dirA=$(mktemp_d)
 for i in 01 02 03 04 05 06 07 08 09 10; do
   : > "$dirA/general-backup-202610${i}T120000Z.zip"
 done
@@ -66,7 +99,7 @@ rm -rf "$dirA"
 
 # Case B: a dense year of daily zips must collapse to exactly 27 distinct
 # restore points, and a second prune must be a no-op.
-dirB=$(mktemp -d)
+dirB=$(mktemp_d)
 for i in $(seq 0 364); do
   : > "$dirB/general-backup-$(date -u -d "2026-01-01 +$i days" +%Y%m%d)T120000Z.zip"
 done
@@ -78,7 +111,7 @@ assert_eq "retention: second prune is a no-op" "$before" "$(ls -1 "$dirB")"
 rm -rf "$dirB"
 
 # Case C: non-conforming names are never touched.
-dirC=$(mktemp -d)
+dirC=$(mktemp_d)
 : > "$dirC/general-backup-20261005T120000Z.zip"
 : > "$dirC/general-backup-garbage.zip" # matches the glob but not the timestamp format
 : > "$dirC/unrelated.zip"
@@ -95,7 +128,7 @@ rm -rf "$dirC"
 # ---------------------------------------------------------------------------
 check_stack() { # $1 = stack directory name
   stack=$1
-  work=$(mktemp -d)
+  work=$(mktemp_d)
   cp -R "$REPO/$stack" "$work/$stack"
   if [ -f "$work/$stack/.env.example" ]; then
     cp "$work/$stack/.env.example" "$work/$stack/.env"
@@ -120,14 +153,13 @@ check_stack() { # $1 = stack directory name
   fi
   rm -rf "$work"
 }
-
 check_stack general
 check_stack media
 
 # Negative control: drop one path from general's BACKUP_PATHS and confirm the
 # checker catches the resulting gap. Guards against a future refactor silently
 # weakening the coverage logic itself.
-negdir=$(mktemp -d)
+negdir=$(mktemp_d)
 cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
@@ -155,7 +187,7 @@ rm -rf "$negdir"
 # excludes; the excluded patterns must not appear in the archive. This guards
 # the zip pattern semantics (a pattern starting "*/" never matches, since
 # zip's * requires at least one character before the literal slash).
-dirD=$(mktemp -d)
+dirD=$(mktemp_d)
 fake="$dirD/backup-roots/home/wbw/docker"
 mkdir -p "$fake/backups"
 : > "$fake/config.yaml"

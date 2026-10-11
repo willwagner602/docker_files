@@ -6,7 +6,9 @@ services:
     labels:
       - autoheal=true
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS --max-time 8 https://1.1.1.1 -o /dev/null || exit 1"]
+      # Check the local WebUI, not an external IP: VPN/provider outages should
+      # not mark a functioning qBittorrent process unhealthy and trigger autoheal.
+      test: ["CMD-SHELL", "curl -fsS --max-time 8 -o /dev/null http://127.0.0.1:8080/"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -33,14 +35,14 @@ services:
       - VPN_NAMESERVERS= #
       - VPN_PIA_USER=${PIA_USER} #
       - VPN_PIA_PASS=${PIA_PASS} #
-      - VPN_PIA_PREFERRED_REGION #
+      - VPN_PIA_PREFERRED_REGION=ca_vancouver #
       - VPN_PIA_DIP_TOKEN=no #
       - VPN_PIA_PORT_FORWARD_PERSIST=false #
       - PRIVOXY_ENABLED=false #
       - UNBOUND_ENABLED=false #
       - UNBOUND_NAMESERVERS #
     volumes:
-      - /bigdisk/qbittorrent/config:/config
+      - /media/qbittorrent/config:/config
       - /bigdisk/plex:/data
     cap_add:
       - NET_ADMIN

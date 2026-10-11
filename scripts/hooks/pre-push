@@ -11,7 +11,7 @@
 #
 #   So CI cannot be made mandatory server-side. This hook is the local
 #   substitute: it runs `make check` (the shell test suite plus strict compose
-#   interpolation of both stacks) and refuses the push if either fails.
+#   interpolation of every stack) and refuses the push if either fails.
 #
 #   It is a backstop, not a gate — `git push --no-verify` bypasses it, and it
 #   only protects pushes made from a machine with the hook installed. CI still

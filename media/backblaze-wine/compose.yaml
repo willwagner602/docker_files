@@ -1,0 +1,47 @@
+# Standalone, local-only Wine client setup. Not included by media/compose.yaml.
+# Direct read-only live source roots with separate OS-disk Backblaze markers.
+# Fixture scan/upload passed for this exact Btrfs-root/.bzvol topology.
+services:
+  backblaze-wine:
+    image: ghcr.io/iamfoz/backblaze-personal-wine:latest@sha256:539ddfee2bfa0202801f799bac753a679f664986bc8ad9fd6b3ab94957b95d60
+    container_name: Backblaze64
+    init: true
+    restart: unless-stopped
+    environment:
+      - USER_ID=1000
+      - GROUP_ID=1000
+      - TZ=Etc/UTC
+      # Project's stable image pins the last client version it reports working
+      # reliably under Wine; do not auto-update to the newer incompatible client.
+      - BACKBLAZE_VERSION=10.0.1.1069
+      - FORCE_LATEST_UPDATE=false
+      - DISABLE_AUTOUPDATE=true
+    ports:
+      # Bind only the host's LAN address (not all interfaces).
+      - "10.0.0.181:5880:5800"
+    volumes:
+      - /bigdisk/backblaze-personal/config:/config
+      # D: is the existing Immich originals volume; keep its marker identity.
+      - type: bind
+        source: /bigdisk/immich/library/upload/ffb64a21-1742-43ee-aeb0-4e54c488de9c
+        target: /drive_d
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /home/wbw/backblaze-drive-markers/d
+        target: /drive_d/.bzvol
+        bind:
+          create_host_path: false
+      # E: contains the entire Google Drive mirror; its marker identity is separate.
+      - type: bind
+        source: /bigdisk/google-drive
+        target: /drive_e
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /home/wbw/backblaze-drive-markers/e
+        target: /drive_e/.bzvol
+        bind:
+          create_host_path: false
