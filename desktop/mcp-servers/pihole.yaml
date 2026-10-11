@@ -1,0 +1,9 @@
+mcp_servers:
+  pihole:
+    transport: stdio
+    command: pihole-mcp
+    args: []
+    default_enabled: false
+    env:
+      PIHOLE_READ_ONLY: "true"
+    pass_env: ["PATH", "PIHOLE_URL", "PIHOLE_PASSWORD"]

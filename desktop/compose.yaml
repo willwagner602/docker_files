@@ -1,0 +1,15 @@
+name: desktop
+
+# The Compose stack for this machine — the host Polytoken runs on.
+#
+# MCP service definitions and client fragments are grouped in mcp-servers/.
+#
+#   compose.yaml                 this file: the whole machine
+#   mcp-servers/compose.yaml     Compose service aggregator
+#   mcp-servers/*-mcp.yml        individual Compose services
+#
+# NOTE: general/ and media/ are separate stacks deployed to their own hosts.
+# Nothing in this directory is deployed to either.
+
+include:
+  - mcp-servers/compose.yaml

@@ -1,0 +1,26 @@
+# ARR MCP — local access to the media services' APIs for Polytoken agents.
+#
+# The dashboard contains the configured service API keys, so keep it bound to
+# loopback. Claim the instance before adding any service credentials. ARR MCP
+# writes are disabled by default; review its tool surface before enabling them.
+# This service is independent of the media stack and needs no Docker socket.
+# Upstream: https://github.com/bardesss/arr-mcp
+services:
+  arr-mcp:
+    image: ghcr.io/bardesss/arr-mcp:1.44.0
+    container_name: arr-mcp
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - "127.0.0.1:6060:6060"
+    volumes:
+      - arr-mcp-config:/config
+    environment:
+      - TZ=America/Los_Angeles
+
+volumes:
+  arr-mcp-config:
