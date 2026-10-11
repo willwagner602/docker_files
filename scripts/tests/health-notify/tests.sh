@@ -67,7 +67,7 @@ new_case() {
   export CURL_LOG STATE_DIR="$STATE"
   export TELEGRAM_BOT_TOKEN=stub-token TELEGRAM_CHAT_ID=stub-chat
   unset STUB_HTTP_BODY STUB_HTTP_FAIL STUB_FAIL_MATCH STUB_EVENTS STUB_EVENTS_BLOCK STUB_PS
-  unset STUB_DF_USE STUB_DF_USE2 STUB_PS SAB_API_KEY SONARR_API_KEY WATCH_CONTAINERS CERT_HOST
+  unset STUB_DF_USE STUB_DF_USE2 STUB_PS SAB_API_KEY SONARR_API_KEY WATCH_CONTAINERS CERT_HOST CERT_CONFIG_DIR SCLIENT_RC CHECKEND_RC
   unset SAB_API_KEY 2>/dev/null || true
   export POLL_INTERVAL=1 STALL_SECONDS=3600 DISK_FREE_THRESHOLD=25
   echo "== $LABEL"
@@ -272,7 +272,67 @@ assert "no fingerprint written when file absent" "$([ ! -f "$STATE_DIR/unpackerr
 
 # ===========================================================================
 echo
-echo "### J. TERM handling: prompt shutdown (timing-sensitive)"
+echo "### J. TLS certificate discovery, verification, and state"
+new_case tls-discovery
+CERT_CONFIG_DIR="$WORK/tls-config-discovery"; mkdir -p "$CERT_CONFIG_DIR"
+cat > "$CERT_CONFIG_DIR/one.conf" <<'EOF'
+server {
+  listen 443 ssl;
+  server_name tls-one.example;
+}
+EOF
+cat > "$CERT_CONFIG_DIR/http.conf" <<'EOF'
+server {
+  listen 80;
+  server_name tls-skipped.example;
+}
+EOF
+cat > "$CERT_CONFIG_DIR/multiple.conf" <<'EOF'
+server {
+  listen 443 ssl;
+  server_name tls-two.example tls-three.example _ ~ignored.example;
+}
+EOF
+export CERT_CONFIG_DIR
+run_body 'check_certificates'
+assert "443 single host is silently recorded ok" "$([ "$(cat "$STATE_DIR/certificate.tls-one.example.status")" = ok ] && [ "$(sends)" = 0 ] && echo 0 || echo 1)"
+assert "port-80 host is skipped" "$([ ! -f "$STATE_DIR/certificate.tls-skipped.example.status" ] && echo 0 || echo 1)"
+assert "multiple valid server_names are checked" "$([ "$(cat "$STATE_DIR/certificate.tls-two.example.status")" = ok ] && [ "$(cat "$STATE_DIR/certificate.tls-three.example.status")" = ok ] && echo 0 || echo 1)"
+assert "underscore and regex server_names are filtered" "$([ ! -f "$STATE_DIR/certificate._.status" ] && [ ! -f "$STATE_DIR/certificate.ignored.example.status" ] && echo 0 || echo 1)"
+
+new_case tls-failure
+CERT_CONFIG_DIR="$WORK/tls-config-failure"; mkdir -p "$CERT_CONFIG_DIR"
+printf 'server {\n listen 443 ssl;\n server_name broken.example;\n}\n' > "$CERT_CONFIG_DIR/site.conf"
+export CERT_CONFIG_DIR SCLIENT_RC=1
+run_body 'check_certificates'
+assert "verify failure writes failed status and alerts once" "$([ "$(cat "$STATE_DIR/certificate.broken.example.status")" = failed ] && [ "$(sends)" = 1 ] && sent 'verification failed for broken.example' && echo 0 || echo 1)"
+before=$(sends); run_body 'check_certificates'
+assert "repeated failure does not duplicate alert" "$([ "$(sends)" = "$before" ] && echo 0 || echo 1)"
+unset SCLIENT_RC
+run_body 'check_certificates'
+assert "recovery writes ok and alerts once" "$([ "$(cat "$STATE_DIR/certificate.broken.example.status")" = ok ] && [ "$(sends)" = 2 ] && sent 'verifies successfully again' && echo 0 || echo 1)"
+before=$(sends); run_body 'check_certificates'
+assert "staying recovered does not duplicate alert" "$([ "$(sends)" = "$before" ] && echo 0 || echo 1)"
+
+new_case tls-expiry
+CERT_CONFIG_DIR="$WORK/tls-config-expiry"; mkdir -p "$CERT_CONFIG_DIR"
+printf 'server {\n listen 443 ssl;\n server_name expiring.example;\n}\n' > "$CERT_CONFIG_DIR/site.conf"
+export CERT_CONFIG_DIR CHECKEND_RC=1
+run_body 'check_certificates'
+assert "expiry check writes warning and sends warning alert" "$([ "$(cat "$STATE_DIR/certificate.expiring.example.status")" = warning ] && [ "$(sends)" = 1 ] && sent 'expires within' && echo 0 || echo 1)"
+before=$(sends); run_body 'check_certificates'
+assert "repeat expiry warning does not duplicate alert" "$([ "$(sends)" = "$before" ] && echo 0 || echo 1)"
+
+new_case tls-no-config
+run_body 'check_certificates'
+assert "unset config dir is silent no-op" "$([ "$(sends)" = 0 ] && [ -z "$(find "$STATE_DIR" -name 'certificate.*' -print)" ] && echo 0 || echo 1)"
+CERT_CONFIG_DIR="$WORK/not-present"; export CERT_CONFIG_DIR
+run_body 'check_certificates'
+assert "missing config dir is silent no-op" "$([ "$(sends)" = 0 ] && [ -z "$(find "$STATE_DIR" -name 'certificate.*' -print)" ] && echo 0 || echo 1)"
+
+# ===========================================================================
+echo
+echo "### K. TERM handling: prompt shutdown (timing-sensitive)"
 # Regression guard for the `docker stop` latency fix.
 #
 # The defect: the signal trap killed the watch_events child but did not exit, so
@@ -310,7 +370,7 @@ printf '#!/bin/sh\nexit 0\n' > "$stub_bin/curl"; chmod +x "$stub_bin/curl"
   set -eu
   PATH="$stub_bin:$PATH"
   STATE_DIR="$STATE" ROLE=general POLL_INTERVAL=1 \
-  TELEGRAM_BOT_TOKEN=stub-token TELEGRAM_CHAT_ID=stub-chat \
+  TELEGRAM_BOT_TOKEN=stub-token TELEGRAM_CHAT_ID=stub-chat CERT_CONFIG_DIR= \
   exec sh "$SCRIPT"
 ) >"$WORK/term.out" 2>&1 &
 child=$!
