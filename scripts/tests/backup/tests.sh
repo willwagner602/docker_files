@@ -189,18 +189,23 @@ rm -rf "$negdir"
 # zip's * requires at least one character before the literal slash).
 dirD=$(mktemp_d)
 fake="$dirD/backup-roots/home/wbw/docker"
-mkdir -p "$fake/backups"
+mkdir -p "$fake/backups" "$fake/diagnostic.data" "$fake/mongo/db.before-raw-recovery-20220922" "$fake/job-digest-state/production-artifacts/run-1"
 : > "$fake/config.yaml"
 : > "$fake/backups/4a96b252.tar"
 : > "$fake/home-assistant_v2.db.corrupt.2022-01-01"
+: > "$fake/home-assistant_v2.db-wal.corrupt.2022-01-01"
+: > "$fake/home-assistant_v2.db-shm.corrupt.2022-01-01"
 : > "$fake/home-assistant.log.1"
+: > "$fake/diagnostic.data/metrics.20261001T000000Z"
+: > "$fake/mongo/db.before-raw-recovery-20220922/WiredTiger.wt"
+: > "$fake/job-digest-state/production-artifacts/run-1/fetched.json"
 ROLE=general DEST_DIR="$dirD" PATH_ROOT="$dirD/backup-roots" \
   BACKUP_PATHS=/home/wbw/docker BACKUP_VOLUMES= \
-  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *diagnostic.data/* *mongo/db.before-raw-recovery-*/*" \
+  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *diagnostic.data/* *mongo/db.before-raw-recovery-*/* *job-digest-state/production-artifacts/*" \
   BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
 zipfile=$(ls "$dirD"/general-backup-*.zip 2>/dev/null | head -1)
 if [ -n "$zipfile" ]; then
-  for bad in "backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant.log.1"; do
+  for bad in "backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant_v2.db-wal.corrupt" "home-assistant_v2.db-shm.corrupt" "home-assistant.log.1" "diagnostic.data/metrics" "db.before-raw-recovery-20220922/WiredTiger.wt" "production-artifacts/run-1/fetched.json"; do
     if unzip -l "$zipfile" | grep -q "$bad"; then
       bad "exclusions: $bad should not be in the archive"
     else

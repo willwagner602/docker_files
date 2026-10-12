@@ -49,8 +49,9 @@ services:
       # blocklist state), mongod FTDC diagnostic.data dirs everywhere
       # (support-bundle metrics only; ~290M compressed across the backup
       # paths and the komodo-mongo-data volume) — mongod still writes FTDC
-      # at the source, but excluding it here keeps backups small without
-      # touching any service config — and the Sep 22 pre-recovery mongo
+      # at the source (komodo-mongo's copy is separately capped in
+      # komodo.yml); excluding it here keeps every other backup path small —
+      # and the Sep 22 pre-recovery mongo
       # snapshot, superseded by the currently running db (safe to delete on
       # disk as well), and job-digest's daily run artifacts under
       # production-artifacts/ (145M raw / 17M comp, 412 files in the Oct 11
