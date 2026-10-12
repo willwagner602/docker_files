@@ -196,7 +196,7 @@ mkdir -p "$fake/backups"
 : > "$fake/home-assistant.log.1"
 ROLE=general DEST_DIR="$dirD" PATH_ROOT="$dirD/backup-roots" \
   BACKUP_PATHS=/home/wbw/docker BACKUP_VOLUMES= \
-  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home/wbw/docker/backups/* *home-assistant.log*" \
+  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *diagnostic.data/* *mongo/db.before-raw-recovery-*/*" \
   BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
 zipfile=$(ls "$dirD"/general-backup-*.zip 2>/dev/null | head -1)
 if [ -n "$zipfile" ]; then
