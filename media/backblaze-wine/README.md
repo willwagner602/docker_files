@@ -50,7 +50,7 @@ checkpoint only for deliberate rollback/recovery, and do not restore an older
 config over newer backup progress without understanding the consequences.
 
 The Drive sync would normally prune or churn the empty root `.bzvol` anchor
-directory. The bisync unit (`systemd/rclone-gdrive-bisync.service` in
+directory. The bisync unit (`systemd/media/rclone-gdrive-bisync.service` in
 `docker_files`) excludes `.bzvol` — the directory itself and its contents —
 so rclone never lists, creates, or deletes it on either side. The former
 `rclone-preserve-bzvol.conf` drop-in source belonged to the removed one-way
