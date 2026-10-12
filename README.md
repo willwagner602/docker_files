@@ -303,8 +303,8 @@ destination remains a separate setup.
 ### Google Drive sync
 
 The `gdrive:` remote (`~/.config/rclone/rclone.conf`) backs two host-level
-syncs. Their systemd units live in `systemd/` (not compose services) and are
-installed manually — they run on the host, not in containers:
+syncs. Their systemd units live in `systemd/media/` (not compose services)
+and are installed manually — they run on the host, not in containers:
 
 - `rclone-gdrive-bisync` — Drive ↔ `/bigdisk/google-drive`, hourly timer.
   Replaced the former every-minute one-way pull. The initial resync (Drive
@@ -326,8 +326,10 @@ Install after cloning or editing:
 
 ```sh
 cd /home/wbw/docker_files
-sudo cp systemd/rclone-gdrive-bisync.service systemd/rclone-gdrive-bisync.timer \
-    systemd/rclone-immich-push.service systemd/rclone-immich-push.timer \
+sudo cp systemd/media/rclone-gdrive-bisync.service \
+    systemd/media/rclone-gdrive-bisync.timer \
+    systemd/media/rclone-immich-push.service \
+    systemd/media/rclone-immich-push.timer \
     /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rclone-gdrive-bisync.timer rclone-immich-push.timer
