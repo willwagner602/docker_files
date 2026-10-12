@@ -24,7 +24,7 @@ IOSchedulingClass=idle
 # copy. --drive-stop-on-upload-limit ends a run cleanly at Google's daily
 # upload quota (~750 GiB/day) instead of retrying past it; the next timer
 # run resumes where this one stopped.
-ExecStart=/home/wbw/.local/bin/rclone sync /bigdisk/immich/library/upload/ffb64a21-1742-43ee-aeb0-4e54c488de9c "gdrive:Immich Library" \
+ExecStart=/usr/bin/flock -n /run/lock/rclone-immich-push.lock /home/wbw/.local/bin/rclone sync /bigdisk/immich/library/upload/ffb64a21-1742-43ee-aeb0-4e54c488de9c "gdrive:Immich Library" \
     --config=/home/wbw/.config/rclone/rclone.conf \
     --fast-list \
     --transfers=8 \

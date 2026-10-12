@@ -2,8 +2,8 @@
 Description=Run Immich originals -> Google Drive sync periodically
 
 [Timer]
-# Host runs in UTC; daily = 00:00 UTC (17:00 PDT).
-OnCalendar=daily
+# Host runs in UTC; explicit UTC so this stays 00:00 UTC even if the host TZ changes.
+OnCalendar=*-*-* 00:00:00 UTC
 RandomizedDelaySec=10min
 Persistent=true
 
