@@ -163,7 +163,11 @@ cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
   COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
-  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json"
+  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/config.err" || {
+    bad "negative control: compose config failed: $(cat "$negdir/config.err")"
+    rm -rf "$negdir"
+    exit 1
+  }
 python3 - "$negdir/cfg.json" <<'EOF'
 import json
 import sys

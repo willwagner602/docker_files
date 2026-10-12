@@ -5,9 +5,9 @@
 # covered fails `make test` and CI.
 #
 # All protected state is mounted READ-ONLY — this container needs no docker
-# socket. The zip lands in the Google Drive "Server Backups" directory
-# (locally synced at /mnt/smallHDD/google-drive); rclone push off-box is a
-# documented follow-up in README.md.
+# socket. This stack's hourly bisync now replicates Server Backups off-box; see
+# general/rclone-sync.yaml for the host-level job. The run lock must remain
+# outside that sync subtree.
 services:
   backup:
     image: docker:29-cli
