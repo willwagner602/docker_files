@@ -28,6 +28,12 @@ services:
     image: postgres:16@sha256:4b7183ac05f8ef417db21fd72d71047a4238340c261d3cc3ddb6d579ab5071ae
     container_name: postgres-db-dump
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /dumps/postgres-all.sql && find /dumps/postgres-all.sql -mmin -1500 -print -quit | grep -q ."]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 5m
     depends_on:
       postgres:
         condition: service_healthy
