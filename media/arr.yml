@@ -57,6 +57,8 @@ services:
       - /bigdisk/plex/whisparr:/config
     ports:
       - 6969:6969/tcp
+    labels:
+      - autoheal=true
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:6969/ping >/dev/null"]
       interval: 30s

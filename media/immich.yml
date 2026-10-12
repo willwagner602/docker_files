@@ -77,6 +77,13 @@ services:
     image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
     container_name: immich-db-dump
     restart: unless-stopped
+    # The image's built-in healthcheck expects a local postgres; this container
+    # only runs daily pg_dumpall against immich-postgres. Without this override
+    # the bare image check always fails and the container shows a meaningless
+    # chronic "unhealthy" status. Dump success is verified by the backup zips,
+    # whose coverage tests fail when db-dumps disappear or stop refreshing.
+    healthcheck:
+      disable: true
     depends_on:
       immich-postgres:
         condition: service_healthy
