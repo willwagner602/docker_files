@@ -303,8 +303,8 @@ against the real mirror.
 - 2026-10-12: replaced the old one-way pull unit `rclone-gdrive-sync.service`
   (and its `90-preserve-bzvol.conf` drop-in) with the bisync pair above. The
   `.bzvol` exclude was carried over into the bisync `ExecStart`.
-- `backblaze-wine/README.md` and `media/backblaze-wine/rclone-preserve-bzvol.conf`
-  still describe the removed pull unit — treat them as historical until updated.
+- `backblaze-wine/README.md` now describes the bisync unit; the obsolete
+  `media/backblaze-wine/rclone-preserve-bzvol.conf` drop-in source was removed.
 - 2026-10-12: media backup moved its lock from
   `Server Backups/.backup-lock` to `/bigdisk/backup-locks/` and re-enabled a
   04:00 schedule; before that, both stacks' 04:00 runs contended for the same
