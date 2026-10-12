@@ -33,7 +33,7 @@ temp_prefix = sys.argv[3] if len(sys.argv) > 3 else ""
 
 def norm(p):
     if temp_prefix and p.startswith(temp_prefix):
-        p = "/home/wbw/docker_files" + p[len(temp_prefix):]
+        p = "/home/wbw/work/docker_files" + p[len(temp_prefix):]
     return p.rstrip("/") if len(p) > 1 else p
 
 services = cfg.get("services", {})

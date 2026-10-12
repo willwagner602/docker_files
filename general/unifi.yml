@@ -10,8 +10,8 @@ services:
       - MONGO_DBNAME=unifi
       - MONGO_AUTHSOURCE=admin
     volumes:
-      - /home/wbw/mongo/db:/data/db
-      - /home/wbw/mongo/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
+      - /mnt/halfToshibaB/docker/data/mongo/db:/data/db
+      - /mnt/halfToshibaB/docker/data/mongo/init-mongo.sh:/docker-entrypoint-initdb.d/init-mongo.sh:ro
     networks:
       - unifi-net
     restart: unless-stopped
@@ -39,7 +39,7 @@ services:
       - MEM_LIMIT=1024 #optional
       - MEM_STARTUP=1024 #optional
     volumes:
-      - /home/wbw/unifi-config:/config
+      - /mnt/halfToshibaB/docker/data/unifi-config:/config
     ports:
       - 8443:8443
       - 3478:3478/udp

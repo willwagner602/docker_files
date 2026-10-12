@@ -18,5 +18,5 @@ services:
     ports:
       - "8765:8765"
     volumes:
-      - /home/wbw/secrets.json:/app/secrets.json:ro
-      - /home/wbw/job-digest-state:/app/.job_digest
+      - /mnt/halfToshibaB/docker/data/job-digest/secrets.json:/app/secrets.json:ro
+      - /mnt/halfToshibaB/docker/data/job-digest/state:/app/.job_digest

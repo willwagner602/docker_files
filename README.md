@@ -46,9 +46,9 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | `tailscale.yml` | Tailscale | Independent host-networked service. |
 | `owntracks.yml` | OwnTracks Recorder | Independent service with persistent state. |
 | `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
-| `job-digest.yml` | Job Digest | Independent service using the `ghcr.io/willwagner602/job-search-tooling` image; state persists in the `/home/wbw/job-digest-state` bind mount. |
-| `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/home/wbw/couchdb`. |
-| `mindwtr.yml` | Mindwtr Cloud | Sync server for the Mindwtr desktop and mobile apps; published only to Nginx Proxy Manager over a dedicated `mindwtr-net` Docker network, with data bind-mounted under `/home/wbw/mindwtr`. |
+| `job-digest.yml` | Job Digest | Independent service using the `ghcr.io/willwagner602/job-search-tooling` image; state persists in the `/mnt/halfToshibaB/docker/data/job-digest/state` bind mount. |
+| `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/mnt/halfToshibaB/docker/data/couchdb`. |
+| `mindwtr.yml` | Mindwtr Cloud | Sync server for the Mindwtr desktop and mobile apps; published only to Nginx Proxy Manager over a dedicated `mindwtr-net` Docker network, with data bind-mounted under `/mnt/halfToshibaB/docker/data/mindwtr`. |
 | `health-notify-general.yml` | Health notifier | Watches all containers through the Docker socket; the general role skips media-only checks and monitors the `willwagner.me` certificate. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
@@ -125,7 +125,7 @@ docker compose logs -f unifi
 
 These files use host-specific bind mounts, device mappings, and environment variables. Before starting a service:
 
-1. Confirm that the referenced host paths and devices exist. For CouchDB, create the bind-mount directories before the first start and give them to UID 5984, the `couchdb` user inside the container: `mkdir -p /home/wbw/couchdb/{data,etc} && chown -R 5984:5984 /home/wbw/couchdb`. Docker creates missing bind-mount sources as root-owned, which leaves CouchDB unable to write.
+1. Confirm that the referenced host paths and devices exist. For CouchDB, create the bind-mount directories before the first start and give them to UID 5984, the `couchdb` user inside the container: `mkdir -p /mnt/halfToshibaB/docker/data/couchdb/{data,etc} && chown -R docker-manager:docker-manager /mnt/halfToshibaB/docker/data/couchdb/{data,etc} && chmod -R a+rwX /mnt/halfToshibaB/docker/data/couchdb/{data,etc}`. Docker creates missing bind-mount sources as root-owned, which leaves CouchDB unable to write.
 2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, `COUCHDB_USER` and `COUCHDB_PASSWORD` for CouchDB, `PIHOLE_WEBPASSWORD`, `MONGO_INITDB_ROOT_PASSWORD`, `MONGO_PASS`, and `ZWAVE_SESSION_SECRET` for the general services, and the VPN variables used by SABnzbd and qBittorrent. Photo uploader additionally requires `PHOTO_UPLOADER_PHOTO_PATH`, operator credentials, a session secret, a Bluesky handle, and a Bluesky App Password; it stores its SQLite database in the named `photo-uploader-data` volume.
 3. Review credentials and secrets before deployment. Some existing service definitions contain deployment-specific values and should be treated as sensitive.
 4. Ensure the required Docker networks and host permissions are available.
@@ -295,7 +295,7 @@ docker compose start couchdb unifi-db
 Restore: unzip the snapshot (it mirrors the host layout, with named volumes
 under `docker-volumes/<volume-name>`), stop the affected services, copy the
 state back (re-apply ownership where the service is picky — CouchDB needs
-`chown -R 5984:5984 /home/wbw/couchdb`), restore named volumes with
+`chown -R docker-manager:docker-manager /mnt/halfToshibaB/docker/data/couchdb/{data,etc} && chmod -R a+rwX /mnt/halfToshibaB/docker/data/couchdb/{data,etc}`), restore named volumes with
 `docker volume create` + copy, and start the services. Each zip contains a
 `backup-manifest.txt` declaring exactly what it covers.
 
@@ -337,7 +337,7 @@ happened in a later PR.
 Install after cloning or editing:
 
 ```sh
-cd /home/wbw/docker_files
+cd /home/wbw/work/docker_files
 sudo cp systemd/media/rclone-gdrive-bisync.service \
     systemd/media/rclone-gdrive-bisync.timer \
     systemd/media/rclone-immich-push.service \
@@ -349,7 +349,7 @@ sudo systemctl enable --now rclone-gdrive-bisync.timer rclone-immich-push.timer
 
 ## CouchDB backup and restore
 
-`/home/wbw/couchdb/data` is the authoritative state (databases and indexes); `/home/wbw/couchdb/etc` holds the `local.d` configuration, including the admin credential hash written on first start. Existing host backups of `/home/wbw` therefore cover CouchDB, with one consistency requirement: a copy taken while the container is running can capture a database mid-write. For a consistent copy, stop the service first:
+`/mnt/halfToshibaB/docker/data/couchdb/data` is the authoritative state (databases and indexes); `/mnt/halfToshibaB/docker/data/couchdb/etc` holds the `local.d` configuration, including the admin credential hash written on first start. Both are covered by the daily backup, with one consistency requirement: a copy taken while the container is running can capture a database mid-write. For a consistent copy, stop the service first:
 
 ```sh
 cd general && docker compose stop couchdb
@@ -358,15 +358,16 @@ cd general && docker compose stop couchdb
 docker compose start couchdb
 ```
 
-To restore: stop the service, restore both directories, re-apply ownership (`chown -R 5984:5984 /home/wbw/couchdb`), and start the service again. Restore `data` and `etc` as a pair so the backup stays self-consistent.
+To restore: stop the service, restore both directories, re-apply ownership (`chown -R docker-manager:docker-manager /mnt/halfToshibaB/docker/data/couchdb/{data,etc} && chmod -R a+rwX /mnt/halfToshibaB/docker/data/couchdb/{data,etc}`), and start the service again. Restore `data` and `etc` as a pair so the backup stays self-consistent.
 
 ## Mindwtr Cloud deployment
 
-`mindwtr-cloud` runs as UID/GID 1000 and writes its state to `/app/cloud_data`, so the bind-mounted directory must exist and be owned by that ID *before* the first start:
+`mindwtr-cloud` runs as UID/GID 1000 and writes its state to `/app/cloud_data`, so the bind-mounted directory must exist and be writable by that ID *before* the first start (the stack's `docker-manager` ownership with the flat `a+rwX` grant covers this):
 
 ```sh
-mkdir -p /home/wbw/mindwtr
-chown 1000:1000 /home/wbw/mindwtr
+mkdir -p /mnt/halfToshibaB/docker/data/mindwtr
+chown docker-manager:docker-manager /mnt/halfToshibaB/docker/data/mindwtr
+chmod a+rwX /mnt/halfToshibaB/docker/data/mindwtr
 ```
 
 Without this the container exits with `cloud data directory is not writable` and restarts in a loop. Set `MINDWTR_CLOUD_AUTH_TOKENS` in `general/.env` (generate with `openssl rand -hex 32`), then bring up the service. It publishes no host port; Nginx Proxy Manager reaches it as `mindwtr-cloud:8787` over the shared `mindwtr-net` network, so the proxy host must use that hostname and must not append `/v1` to the base URL configured in the apps.
@@ -377,7 +378,7 @@ The token is the whole account, which drives three consequences worth knowing be
 - **Rotation orphans data.** Changing the token and recreating the container leaves the previous dataset on disk under the old token's hash; the new token starts empty. Move `<old-sha256>.json` onto the new key deliberately if you need to keep the data.
 - **An unset variable fails closed.** The server refuses to start when no allowlist is configured, so a missing `MINDWTR_CLOUD_AUTH_TOKENS` takes the service down rather than opening the instance to any token.
 
-Each dataset is a single JSON file under `/home/wbw/mindwtr` (`<sha256-of-token>.json`), plus a `.locks` directory used for write serialization. The directory is covered by the general stack's daily backup (`general/backup.yml`), which copies it live; for a guaranteed-consistent copy, stop the service first as described under [Backups](#backups).
+Each dataset is a single JSON file under `/mnt/halfToshibaB/docker/data/mindwtr` (`<sha256-of-token>.json`), plus a `.locks` directory used for write serialization. The directory is covered by the general stack's daily backup (`general/backup.yml`), which copies it live; for a guaranteed-consistent copy, stop the service first as described under [Backups](#backups).
 
 ## Validation
 

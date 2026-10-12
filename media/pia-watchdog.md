@@ -34,7 +34,7 @@ region is always skipped (it is what just failed).
 Cron entry (30-minute cadence):
 
 ```
-*/30 * * * * /home/wbw/docker_files/media/pia-watchdog.sh >> $HOME/.local/state/pia-watchdog.log 2>&1
+*/30 * * * * /home/wbw/work/docker_files/media/pia-watchdog.sh >> $HOME/.local/state/pia-watchdog.log 2>&1
 ```
 
 Apply with: `(crontab -l 2>/dev/null; echo '<line above>') | crontab -`

@@ -170,7 +170,7 @@ import sys
 cfg = json.load(open(sys.argv[1]))
 env = cfg["services"]["backup"]["environment"]
 env["BACKUP_PATHS"] = " ".join(
-    p for p in env["BACKUP_PATHS"].split() if p != "/home/wbw/couchdb"
+    p for p in env["BACKUP_PATHS"].split() if p != "/mnt/halfToshibaB/docker/data/couchdb"
 )
 json.dump(cfg, open(sys.argv[1], "w"))
 EOF
@@ -262,16 +262,20 @@ rm -rf "$dumpfixture"
 # Compose config, then take a real --now snapshot of fake bind and named-volume
 # state. This guards zip pattern semantics across both archive layouts.
 dirD=$(mktemp_d)
-fake="$dirD/backup-roots/home/wbw/docker"
-jobfake="$dirD/backup-roots/home/wbw/job-digest-state"
-mkdir -p "$fake/backups" "$fake/diagnostic.data" "$jobfake/production-artifacts/run-1"
-: > "$fake/config.yaml"
-: > "$fake/backups/4a96b252.tar"
-: > "$fake/home-assistant_v2.db.corrupt.2022-01-01"
-: > "$fake/home-assistant_v2.db-wal.corrupt.2022-01-01"
-: > "$fake/home-assistant_v2.db-shm.corrupt.2022-01-01"
-: > "$fake/home-assistant.log.1"
-: > "$fake/diagnostic.data/metrics.20261001T000000Z"
+# Case D fixtures mirror the deployed layout: HA state under
+# /mnt/halfToshibaB/docker/data, job-digest state under job-digest/state,
+# plus a named-volume staging tree. Resolving EXCLUDES from the real compose
+# config keeps this test tied to backup.yml rather than a second copy.
+fake="$dirD/backup-roots/mnt/halfToshibaB/docker/data"
+jobfake="$fake/job-digest/state"
+mkdir -p "$fake/homeassistant/backups" "$fake/homeassistant/diagnostic.data" "$jobfake/production-artifacts/run-1"
+: > "$fake/homeassistant/config.yaml"
+: > "$fake/homeassistant/backups/4a96b252.tar"
+: > "$fake/homeassistant/home-assistant_v2.db.corrupt.2022-01-01"
+: > "$fake/homeassistant/home-assistant_v2.db-wal.corrupt.2022-01-01"
+: > "$fake/homeassistant/home-assistant_v2.db-shm.corrupt.2022-01-01"
+: > "$fake/homeassistant/home-assistant.log.1"
+: > "$fake/homeassistant/diagnostic.data/metrics.20261001T000000Z"
 : > "$jobfake/production-artifacts/run-1/fetched.json"
 # Real durable job-digest state files (see general/job-digest.yml);
 # hn-cache.json is a real file the service rewrites daily.
@@ -292,31 +296,33 @@ import json, sys
 print(json.load(open(sys.argv[1]))["services"]["backup"]["environment"]["EXCLUDES"])
 EOF
 )
+rm -rf "$negdir"
 ROLE=general DEST_DIR="$dirD" PATH_ROOT="$dirD/backup-roots" \
   VOLUME_ROOT="$dirD/volume-roots" \
-  BACKUP_PATHS="/home/wbw/docker /home/wbw/job-digest-state" \
+  BACKUP_PATHS="/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/job-digest" \
   BACKUP_VOLUMES=komodo-mongo-data EXCLUDES="$excludes" \
-  BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
+  BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" 2>"$dirD/run-backup.err" >/dev/null
 zipfile=$(ls "$dirD"/general-backup-*.zip 2>/dev/null | head -1)
-if [ -n "$zipfile" ]; then
-  for bad in "backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant_v2.db-wal.corrupt" "home-assistant_v2.db-shm.corrupt" "home-assistant.log.1" "diagnostic.data/metrics" "production-artifacts/run-1/fetched.json"; do
+if [ -z "$zipfile" ]; then
+  bad "exclusions: no snapshot was created"
+  sed 's/^/      /' "$dirD/run-backup.err" >&2
+else
+  for bad in "homeassistant/backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant_v2.db-wal.corrupt" "home-assistant_v2.db-shm.corrupt" "home-assistant.log.1" "diagnostic.data/metrics" "production-artifacts/run-1/fetched.json"; do
     if unzip -l "$zipfile" | grep -q "$bad"; then
       bad "exclusions: $bad should not be in the archive"
     else
       ok "exclusions: $bad absent from archive"
     fi
   done
-  unzip -l "$zipfile" | grep -q "config.yaml" \
+  unzip -l "$zipfile" | grep -q "homeassistant/config.yaml" \
     && ok "exclusions: included files still present" \
     || bad "exclusions: config.yaml missing from archive"
-  unzip -l "$zipfile" | grep -q "job-digest-state/hn-cache.json" \
+  unzip -l "$zipfile" | grep -q "job-digest/state/hn-cache.json" \
     && ok "exclusions: durable job-digest state remains included" \
     || bad "exclusions: durable job-digest state missing from archive"
   unzip -l "$zipfile" | grep -q "docker-volumes/komodo-mongo-data/WiredTiger.wt" \
     && ok "exclusions: named-volume durable state remains included" \
     || bad "exclusions: named-volume durable state missing from archive"
-else
-  bad "exclusions: no snapshot was created"
 fi
 rm -rf "$dirD"
 

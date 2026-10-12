@@ -12,8 +12,8 @@ services:
       FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD:?Set PIHOLE_WEBPASSWORD in .env}
       FTLCONF_dns_listeningMode: 'all'
     volumes:
-      - /home/wbw/etc-pihole:/etc/pihole
-      - /home/wbw/etc-dnsmasq.d:/etc/dnsmasq.d
+      - /mnt/halfToshibaB/docker/data/pihole:/etc/pihole
+      - /mnt/halfToshibaB/docker/data/dnsmasq:/etc/dnsmasq.d
     restart: unless-stopped
     logging:
       driver: json-file

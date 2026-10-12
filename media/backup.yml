@@ -30,7 +30,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /media/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps /home/wbw/docker_files
+      - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /media/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps
       # SQL exports are the database restore points; coverage_check verifies
       # that their containing directory remains declared for backup.
       - REQUIRED_BACKUP_FILES=/bigdisk/db-dumps/postgres-all.sql /bigdisk/db-dumps/immich-all.sql
@@ -60,7 +60,7 @@ services:
       #   /bigdisk/google-drive — upstream mirror, regenerable from Google Drive.
       - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /bigdisk/plex /bigdisk/plex/tv /bigdisk/plex/movies /bigdisk/plex/downloads/xxx-inbox /bigdisk/plex/downloads/whisparr /bigdisk/plex/xxx /bigdisk/plex/stash/generated /bigdisk/plex/stash/cache /bigdisk/frigate /bigdisk/immich/library /bigdisk/immich/model-cache /bigdisk/immich/postgres /bigdisk/plex/database /path/to/photos /proc /etc/komodo /bigdisk/google-drive/Photos /bigdisk/photos /bigdisk/backblaze-personal/config /home/wbw/backblaze-drive-markers/d /home/wbw/backblaze-drive-markers/e /bigdisk/google-drive
       # Backup paths that no service mounts (repo copy for restorability).
-      - EXTRA_BACKUP_PATHS=/home/wbw/docker_files
+      - EXTRA_BACKUP_PATHS=/home/wbw/work/docker_files
       # Zip-level excludes. Restates the script defaults (WAL/SHM sidecars,
       # IPC sockets), skips application logs (~375 MB), and trims Plex's
       # config to the library/blobs databases + Preferences.xml (decision
@@ -92,7 +92,7 @@ services:
       - /media/qbittorrent/config:/backup-roots/media/qbittorrent/config:ro
       - /bigdisk/sabnzbd/config:/backup-roots/bigdisk/sabnzbd/config:ro
       - /bigdisk/db-dumps:/backup-roots/bigdisk/db-dumps:ro
-      - /home/wbw/docker_files:/backup-roots/home/wbw/docker_files:ro
+      - /home/wbw/work/docker_files:/backup-roots/home/wbw/work/docker_files:ro
       # --- protected named volumes (read-only) ---
       - komodo-keys:/volume-roots/komodo-keys:ro
       # --- run lock (local disk, outside the synced mirror) ---

@@ -12,8 +12,8 @@ services:
       - '81:81'
       - '443:443'
     volumes:
-      - /home/wbw/data:/data
-      - /home/wbw/letsencrypt:/etc/letsencrypt
+      - /mnt/halfToshibaB/docker/data/nginx-proxy-data:/data
+      - /mnt/halfToshibaB/docker/data/letsencrypt:/etc/letsencrypt
     networks:
       - npm
       - couchdb-net

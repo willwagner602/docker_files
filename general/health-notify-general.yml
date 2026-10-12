@@ -70,5 +70,5 @@ services:
       - CERT_WARN_DAYS=30
     volumes:
       - ../scripts/health-notify.sh:/notify.sh:ro
-      - /home/wbw/data/nginx/proxy_host:/npm-proxy-hosts:ro
-      - /home/wbw/health-notify/general:/state
+      - /mnt/halfToshibaB/docker/data/nginx-proxy-data/nginx/proxy_host:/npm-proxy-hosts:ro
+      - /mnt/halfToshibaB/docker/data/health-notify/general:/state
