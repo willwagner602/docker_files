@@ -171,7 +171,7 @@ import sys
 cfg = json.load(open(sys.argv[1]))
 env = cfg["services"]["backup"]["environment"]
 env["BACKUP_PATHS"] = " ".join(
-    p for p in env["BACKUP_PATHS"].split() if p != "/home/wbw/couchdb"
+    p for p in env["BACKUP_PATHS"].split() if p != "/mnt/halfToshibaB/docker/data/couchdb"
 )
 json.dump(cfg, open(sys.argv[1], "w"))
 EOF
@@ -188,20 +188,20 @@ rm -rf "$negdir"
 # the zip pattern semantics (a pattern starting "*/" never matches, since
 # zip's * requires at least one character before the literal slash).
 dirD=$(mktemp_d)
-fake="$dirD/backup-roots/home/wbw/docker"
-mkdir -p "$fake/backups" "$fake/diagnostic.data" "$fake/mongo/db.before-raw-recovery-20220922" "$fake/job-digest-state/production-artifacts/run-1"
-: > "$fake/config.yaml"
-: > "$fake/backups/4a96b252.tar"
-: > "$fake/home-assistant_v2.db.corrupt.2022-01-01"
-: > "$fake/home-assistant_v2.db-wal.corrupt.2022-01-01"
-: > "$fake/home-assistant_v2.db-shm.corrupt.2022-01-01"
-: > "$fake/home-assistant.log.1"
-: > "$fake/diagnostic.data/metrics.20261001T000000Z"
+fake="$dirD/backup-roots/mnt/halfToshibaB/docker/data"
+mkdir -p "$fake/homeassistant/backups" "$fake/homeassistant/diagnostic.data" "$fake/mongo/db.before-raw-recovery-20220922" "$fake/job-digest/state/production-artifacts/run-1"
+: > "$fake/homeassistant/config.yaml"
+: > "$fake/homeassistant/backups/4a96b252.tar"
+: > "$fake/homeassistant/home-assistant_v2.db.corrupt.2022-01-01"
+: > "$fake/homeassistant/home-assistant_v2.db-wal.corrupt.2022-01-01"
+: > "$fake/homeassistant/home-assistant_v2.db-shm.corrupt.2022-01-01"
+: > "$fake/homeassistant/home-assistant.log.1"
+: > "$fake/homeassistant/diagnostic.data/metrics.20261001T000000Z"
 : > "$fake/mongo/db.before-raw-recovery-20220922/WiredTiger.wt"
-: > "$fake/job-digest-state/production-artifacts/run-1/fetched.json"
+: > "$fake/job-digest/state/production-artifacts/run-1/fetched.json"
 ROLE=general DEST_DIR="$dirD" PATH_ROOT="$dirD/backup-roots" \
-  BACKUP_PATHS=/home/wbw/docker BACKUP_VOLUMES= \
-  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *diagnostic.data/* *mongo/db.before-raw-recovery-*/* *job-digest-state/production-artifacts/*" \
+  BACKUP_PATHS="/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/job-digest" BACKUP_VOLUMES= \
+  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *mnt/halfToshibaB/docker/data/homeassistant/backups/* *home-assistant.log* *diagnostic.data/* *mnt/halfToshibaB/docker/data/mongo/db.before-raw-recovery-*/* *mnt/halfToshibaB/docker/data/job-digest/state/production-artifacts/*" \
   BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
 zipfile=$(ls "$dirD"/general-backup-*.zip 2>/dev/null | head -1)
 if [ -n "$zipfile" ]; then

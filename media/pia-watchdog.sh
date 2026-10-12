@@ -21,7 +21,7 @@
 set -u
 
 CONTAINER="qbittorrent"
-COMPOSE_DIR="/home/wbw/docker_files/media"
+COMPOSE_DIR="/home/wbw/work/docker_files/media"
 YML="$COMPOSE_DIR/qbittorrent.yml"
 REGIONS_JSON="/media/qbittorrent/config/wireguard/pia-regions.json"
 LOG_TAG="pia-watchdog"
