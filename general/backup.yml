@@ -52,9 +52,16 @@ services:
       # durable state and completed digests remain included. Sizes are from the
       # 2026-10-11 archive and will vary over time.
       - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *etc-pihole/pihole-FTL.db *diagnostic.data/* *job-digest-state/production-artifacts/*
+      # The run lock lives on local disk (mounted at /locks), OUTSIDE the
+      # synced google-drive mirror, so the backup can never fence the bisync
+      # the way the 2026-10-12 ".backup-lock/pid" collision did (media host
+      # precedent: BACKUP_LOCK_DIR=/locks + /bigdisk/backup-locks).
+      - BACKUP_LOCK_DIR=/locks
     volumes:
       - ../scripts/backup.sh:/backup.sh:ro
       - "/mnt/smallHDD/google-drive/Server Backups:/backups"
+      # --- run lock (smallHDD but outside the bisynced "Server Backups" tree) ---
+      - /mnt/smallHDD/backup-locks:/locks
       # --- protected bind-mount state (read-only) ---
       - /home/wbw/docker:/backup-roots/home/wbw/docker:ro
       - /home/wbw/etc-pihole:/backup-roots/home/wbw/etc-pihole:ro
