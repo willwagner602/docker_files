@@ -8,6 +8,11 @@
 # (OAuth token, passwords) are deliberately NOT recorded here.
 #
 # Last verified: 2026-10-12.
+#
+# This is a DOCUMENTATION RECORD ONLY: nothing in the compose stack or CI
+# consumes this file (general/compose.yaml's include list does not reference
+# it, and `make validate` does not parse it). Keep it out of any compose
+# include list.
 
 host:
   name: wbw-ha
@@ -102,6 +107,32 @@ scheduler:
     # `grep -l 'backup-lock' /home/wbw/.cache/rclone/bisync/*.lst`
     # (no matches in canonical listings). Otherwise stop the timer and follow
     # the guarded recovery procedure.
+  #
+  # COMPOSED DRIFT-WATCH RESOLUTION CHECKLIST — run every step in order; the
+  # rules it chains come from failure_modes.filter_changes (CLI filter change
+  # => treated as requiring --resync), the recovery block (guarded procedure),
+  # and no_delete_seatbelt (threshold decision):
+  #   1. Stop the timer: `sudo systemctl stop rclone-server-backups-bisync.timer`
+  #      and confirm no rclone process is running (pgrep -a rclone).
+  #   2. Preflight: the guarded recovery preflight checks above (findmnt,
+  #      directory populated, recent expected archives present, Drive side
+  #      checked with rclone lsf).
+  #   3. Install the current repo units (install_procedure above) and
+  #      daemon-reload; confirm the new ExecStart with
+  #      `systemctl cat rclone-server-backups-bisync.service`
+  #      (--exclude ".backup-lock/" and --log-file both present).
+  #   4. Because the reinstall changes the unit's CLI filters, run the guarded
+  #      resync: dry-run preview first (recovery.dry_run), review the proposed
+  #      Path2 deletes, then the real resync (recovery.resync) only if the
+  #      preview matches expected contents.
+  #   5. Decide the delete seatbelt for this pair (see no_delete_seatbelt;
+  #      default 50% abort applies unless you lower it) and record the choice
+  #      in the unit revision if you add the flag.
+  #   6. Verify one clean run: `sudo systemctl start
+  #      rclone-server-backups-bisync.service` exits 0 with "Bisync
+  #      successful", then re-enable the timer
+  #      (`sudo systemctl start rclone-server-backups-bisync.timer`) and clear
+  #      this DRIFT-WATCH status; keep install_status in sync with reality.
 
 backup_integration:
   provider: general/backup.yml   # container backup-general (docker:29-cli)
@@ -237,9 +268,13 @@ failure_modes:
       dry-run/recovery procedure above. (The filter-file hash behavior described
       in newer rclone docs is not available for this host's CLI filters.)"
   no_delete_seatbelt:
-    note: this pair runs without --max-delete (the wbw-media bisync uses
-      500). A spurious deletion on either side would propagate as-is; consider
-      adding --max-delete during the next unit revision.
+    note: "this pair runs without an explicit --max-delete, so bisync's default
+      abort still applies: if more than 50% of listed files would be deleted on
+      either path, bisync aborts without making changes (--max-delete is a
+      percentage in bisync, not a file count; wbw-media's \"500\" is just its
+      500% threshold). Sub-50% spurious deletions would still propagate as-is;
+      consider lowering the threshold (e.g. --max-delete 5) at the next unit
+      revision if that residual risk matters."
   silent_scheduling_gaps:
     lesson: check both the systemd journal state and the log file tail;
       7 hours of failures happened unnoticed because cron/units kept
