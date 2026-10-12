@@ -7,8 +7,8 @@
 # Databases are NOT hot-copied: postgres-db-dump (media/postgres.yml) and
 # immich-db-dump (media/immich.yml) export pg_dumpall snapshots to
 # /bigdisk/db-dumps, which is what gets zipped. The zip lands in the Google
-# Drive "Server Backups" directory; rclone push off-box is a documented
-# follow-up in README.md.
+# Drive "Server Backups" directory; this host's hourly rclone bisync replicates
+# it to Drive (see rclone-config.md).
 services:
   backup:
     image: docker:29-cli
@@ -62,9 +62,10 @@ services:
       # IPC sockets), skips application logs (~375 MB), and trims Plex's
       # config to the library/blobs databases + Preferences.xml (decision
       # 2026-10-12): snapshots, Media bundles, Metadata, Cache, Codecs,
-      # Crash Reports, and Updates all regenerate after a restore. The *
-      # wildcards also stand in for spaces in Plex's directory names.
-      - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *ipc-socket *Plex*Media*Server/Logs/* bigdisk/prowlarr/logs/* bigdisk/sabnzbd/config/logs/* bigdisk/plex/radarr/logs/* bigdisk/plex/sonarr/logs/* bigdisk/plex/whisparr/logs/* bigdisk/plex/ombi/Logs/* media/qbittorrent/config/data/logs/* home/wbw/unpackerr/*.log* *Plex*Media*Server/Cache/* *Plex*Media*Server/Metadata/* *Plex*Media*Server/Media/* *Plex*Media*Server/Codecs/* *Plex*Media*Server/Crash*Reports/* *Plex*Media*Server/Updates/* *Plex*Media*Server/Plug-in*Support/Databases/*db-2* bigdisk/plex/stash/config/blobs/* bigdisk/plex/radarr/MediaCover/* bigdisk/plex/sonarr/MediaCover/*
+      # Crash Reports, Updates, and the arr-app MediaCover image caches all
+      # regenerate after a restore. The * wildcards also stand in for spaces
+      # in Plex's directory names.
+      - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *ipc-socket *Plex*Media*Server/Logs/* bigdisk/prowlarr/logs/* bigdisk/sabnzbd/config/logs/* bigdisk/plex/radarr/logs/* bigdisk/plex/sonarr/logs/* bigdisk/plex/whisparr/logs/* bigdisk/plex/ombi/Logs/* media/qbittorrent/config/data/logs/* home/wbw/unpackerr/*.log* *Plex*Media*Server/Cache/* *Plex*Media*Server/Metadata/* *Plex*Media*Server/Media/* *Plex*Media*Server/Codecs/* *Plex*Media*Server/Crash*Reports/* *Plex*Media*Server/Updates/* *Plex*Media*Server/Plug-in*Support/Databases/*db-2* bigdisk/plex/stash/config/blobs/* bigdisk/plex/radarr/MediaCover/* bigdisk/plex/sonarr/MediaCover/* bigdisk/plex/whisparr/MediaCover/*
       # The run lock lives on local disk (mounted at /locks), outside the
       # synced google-drive mirror, so it is never part of the Drive content
       # and never couples this stack to the general stack on the other host.

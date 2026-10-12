@@ -17,8 +17,8 @@ IOSchedulingClass=idle
 # /bigdisk/immich/library/upload/<user-uuid> is Immich's originals store for
 # the single account on this host (media/immich.yml mounts the parent
 # directory at /data). The thumbs/, encoded-video/ and backups/ siblings are
-# regenerable and deliberately not synced. The pull sync excludes
-# "Immich Library" so this push is one-way (see rclone-gdrive-sync.service).
+# regenerable and deliberately not synced. The bisync excludes
+# "Immich Library" so this push is one-way (see rclone-gdrive-bisync.service).
 #
 # --max-delete=100 guards against a moved/renamed library wiping the drive
 # copy. --drive-stop-on-upload-limit ends a run cleanly at Google's daily

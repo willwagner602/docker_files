@@ -87,13 +87,11 @@ ExecStart=/usr/bin/flock -n /run/lock/rclone-gdrive-bisync.lock /home/wbw/.local
     --create-empty-src-dirs \
     --max-delete=500 \
     --exclude "Immich Library/**" \
+    --exclude "/.bzvol" \
     --exclude "/.bzvol/**" \
     --retries=3 \
     --low-level-retries=10 \
     --log-level=INFO
-
-[Install]
-WantedBy=multi-user.target
 ```
 
 `/etc/systemd/system/rclone-gdrive-bisync.timer`:
@@ -153,9 +151,6 @@ ExecStart=/usr/bin/flock -n /run/lock/rclone-immich-push.lock /home/wbw/.local/b
     --retries=3 \
     --low-level-retries=10 \
     --log-level=INFO
-
-[Install]
-WantedBy=multi-user.target
 ```
 
 `/etc/systemd/system/rclone-immich-push.timer`:
@@ -273,14 +268,16 @@ one-time resync is run with the exact same arguments plus `--resync`:
 
 ```sh
 sudo systemctl stop rclone-gdrive-bisync.timer
-sudo /usr/bin/flock -n /run/lock/rclone-gdrive-bisync.lock \
+sudo systemctl stop rclone-gdrive-bisync.service
+sudo -u wbw /usr/bin/flock -n /run/lock/rclone-gdrive-bisync.lock \
   /home/wbw/.local/bin/rclone bisync gdrive: /bigdisk/google-drive \
     --config=/home/wbw/.config/rclone/rclone.conf \
     --workdir=/var/lib/rclone/bisync \
     --fast-list --transfers=8 --checkers=16 --track-renames \
     --create-empty-src-dirs --max-delete=500 \
-    --exclude "Immich Library/**" --exclude "/.bzvol/**" \
-    --resync
+    --exclude "Immich Library/**" --exclude "/.bzvol" --exclude "/.bzvol/**" \
+    --retries=3 --low-level-retries=10 --log-level=INFO \
+    --resync --resync-mode path1
 sudo systemctl start rclone-gdrive-bisync.timer
 ```
 

@@ -189,8 +189,9 @@ state back (re-apply ownership where the service is picky — CouchDB needs
 `docker volume create` + copy, and start the services. Each zip contains a
 `backup-manifest.txt` declaring exactly what it covers.
 
-Off-box replication is a follow-up: point `rclone move` (or `restic`) at the
-"Server Backups" directory once a Google Drive remote is configured.
+The media host replicates its "Server Backups" directory to Google Drive via
+the hourly bisync below. Off-box replication for the general host's backup
+destination remains a separate setup.
 
 ### Google Drive sync
 
