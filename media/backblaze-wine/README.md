@@ -49,12 +49,13 @@ Prefer the current config and marker directories for ordinary recreation. Use a
 checkpoint only for deliberate rollback/recovery, and do not restore an older
 config over newer backup progress without understanding the consequences.
 
-The Google Drive mirror's periodic rclone pull would normally prune its empty
-root `.bzvol` mountpoint. The installed systemd drop-in
-`/etc/systemd/system/rclone-gdrive-sync.service.d/90-preserve-bzvol.conf` adds
-the tested `--exclude /.bzvol/**` rule. Its source copy is
-`media/backblaze-wine/rclone-preserve-bzvol.conf`; reconcile it with the base
-unit if that unit changes. Do not run a sync as a test without separate approval.
+The Drive sync would normally prune or churn the empty root `.bzvol` anchor
+directory. The bisync unit (`systemd/rclone-gdrive-bisync.service` in
+`docker_files`) excludes `.bzvol` — the directory itself and its contents —
+so rclone never lists, creates, or deletes it on either side. The former
+`rclone-preserve-bzvol.conf` drop-in source belonged to the removed one-way
+pull unit and is obsolete; it can be deleted with that unit's remaining
+references. Do not run a sync as a test without separate approval.
 
 ## Backup state and verification
 
