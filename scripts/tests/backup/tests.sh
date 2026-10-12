@@ -188,7 +188,9 @@ cp -R "$REPO/media" "$mediadir/media"
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
   PIA_USER=ci-placeholder PIA_PASS=ci-placeholder \
   FRIGATE_RTSP_PASSWORD=ci-placeholder POSTGRES_PASSWORD=ci-placeholder \
-  PLUS_API_KEY=ci-placeholder IMMICH_VERSION=v3.1.0 IMMICH_DB_PASSWORD=ci-placeholder \
+  PLEX_CLAIM=ci-placeholder SONARR_API_KEY=ci-placeholder RADARR_API_KEY=ci-placeholder \
+  SAB_API_KEY=ci-placeholder PLUS_API_KEY=ci-placeholder \
+  IMMICH_VERSION=v3.1.0 IMMICH_DB_PASSWORD=ci-placeholder \
   PHOTO_UPLOADER_OPERATOR_USERNAME=ci-placeholder PHOTO_UPLOADER_OPERATOR_PASSWORD=ci-placeholder \
   PHOTO_UPLOADER_SESSION_SECRET=ci-placeholder PHOTO_UPLOADER_BSKY_HANDLE=ci-placeholder \
   PHOTO_UPLOADER_BSKY_APP_PASSWORD=ci-placeholder PHOTO_UPLOADER_PHOTO_PATH=/tmp \
