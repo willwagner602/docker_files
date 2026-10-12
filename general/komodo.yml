@@ -21,7 +21,11 @@ services:
         max-file: "3"
     labels:
       komodo.skip: # Prevent Komodo from stopping its own DB with StopAllContainers
-    command: --quiet --wiredTigerCacheSizeGB 0.25
+    # mongod's built-in FTDC diagnostic.data metrics (support-bundle data
+    # this setup never sends to Mongo support) default to a 500 MB cap;
+    # 25 MB keeps roughly a day of 1-second samples on disk (a 10 MB
+    # metrics file holds ~16h at the default sample rate).
+    command: --quiet --wiredTigerCacheSizeGB 0.25 --setParameter diagnosticDataCollectionDirectorySizeMB=25
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${KOMODO_DATABASE_USERNAME:?set in general/.env}
       - MONGO_INITDB_ROOT_PASSWORD=${KOMODO_DATABASE_PASSWORD:?set in general/.env}
