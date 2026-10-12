@@ -182,14 +182,13 @@ else
 fi
 rm -rf "$negdir"
 
-# Case D: end-to-end exclusion check. Builds a fake state tree, points
-# PATH_ROOT at it, and takes a real --now snapshot with the general stack's
-# excludes; the excluded patterns must not appear in the archive. This guards
-# the zip pattern semantics (a pattern starting "*/" never matches, since
-# zip's * requires at least one character before the literal slash).
+# Case D: end-to-end exclusion check. Resolve EXCLUDES from general's actual
+# Compose config, then take a real --now snapshot of fake bind and named-volume
+# state. This guards zip pattern semantics across both archive layouts.
 dirD=$(mktemp_d)
 fake="$dirD/backup-roots/home/wbw/docker"
-mkdir -p "$fake/backups" "$fake/diagnostic.data" "$fake/mongo/db.before-raw-recovery-20220922" "$fake/job-digest-state/production-artifacts/run-1"
+jobfake="$dirD/backup-roots/home/wbw/job-digest-state"
+mkdir -p "$fake/backups" "$fake/diagnostic.data" "$jobfake/production-artifacts/run-1"
 : > "$fake/config.yaml"
 : > "$fake/backups/4a96b252.tar"
 : > "$fake/home-assistant_v2.db.corrupt.2022-01-01"
@@ -197,15 +196,30 @@ mkdir -p "$fake/backups" "$fake/diagnostic.data" "$fake/mongo/db.before-raw-reco
 : > "$fake/home-assistant_v2.db-shm.corrupt.2022-01-01"
 : > "$fake/home-assistant.log.1"
 : > "$fake/diagnostic.data/metrics.20261001T000000Z"
-: > "$fake/mongo/db.before-raw-recovery-20220922/WiredTiger.wt"
-: > "$fake/job-digest-state/production-artifacts/run-1/fetched.json"
+: > "$jobfake/production-artifacts/run-1/fetched.json"
+: > "$jobfake/state.json"
+volfake="$dirD/volume-roots/komodo-mongo-data/diagnostic.data"
+mkdir -p "$volfake"
+: > "$volfake/metrics.20261001T000000Z"
+negdir=$(mktemp_d)
+cp -R "$REPO/general" "$negdir/general"
+if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
+TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
+COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
+docker compose --project-directory "$negdir/general" config --format json > "$dirD/general-config.json"
+excludes=$(python3 - "$dirD/general-config.json" <<'EOF'
+import json, sys
+print(json.load(open(sys.argv[1]))["services"]["backup"]["environment"]["EXCLUDES"])
+EOF
+)
 ROLE=general DEST_DIR="$dirD" PATH_ROOT="$dirD/backup-roots" \
-  BACKUP_PATHS=/home/wbw/docker BACKUP_VOLUMES= \
-  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *diagnostic.data/* *mongo/db.before-raw-recovery-*/* *job-digest-state/production-artifacts/*" \
+  VOLUME_ROOT="$dirD/volume-roots" \
+  BACKUP_PATHS="/home/wbw/docker /home/wbw/job-digest-state" \
+  BACKUP_VOLUMES=komodo-mongo-data EXCLUDES="$excludes" \
   BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
 zipfile=$(ls "$dirD"/general-backup-*.zip 2>/dev/null | head -1)
 if [ -n "$zipfile" ]; then
-  for bad in "backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant_v2.db-wal.corrupt" "home-assistant_v2.db-shm.corrupt" "home-assistant.log.1" "diagnostic.data/metrics" "db.before-raw-recovery-20220922/WiredTiger.wt" "production-artifacts/run-1/fetched.json"; do
+  for bad in "backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant_v2.db-wal.corrupt" "home-assistant_v2.db-shm.corrupt" "home-assistant.log.1" "diagnostic.data/metrics" "production-artifacts/run-1/fetched.json"; do
     if unzip -l "$zipfile" | grep -q "$bad"; then
       bad "exclusions: $bad should not be in the archive"
     else
@@ -215,6 +229,9 @@ if [ -n "$zipfile" ]; then
   unzip -l "$zipfile" | grep -q "config.yaml" \
     && ok "exclusions: included files still present" \
     || bad "exclusions: config.yaml missing from archive"
+  unzip -l "$zipfile" | grep -q "job-digest-state/state.json" \
+    && ok "exclusions: durable job-digest state remains included" \
+    || bad "exclusions: durable job-digest state missing from archive"
 else
   bad "exclusions: no snapshot was created"
 fi

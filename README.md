@@ -139,9 +139,12 @@ Docker and service status across both hosts, with notifications (Telegram et
 al., configured in the UI), per-container logs, and restart controls.
 
 - `general/komodo.yml` runs Core (+ MongoDB) and the local Periphery agent.
-  The UI is at `http://<general-host>:9120`; the initial admin is created from
-  `KOMODO_INIT_ADMIN_*` in `general/.env` on first launch. Registration is
-  disabled.
+  Open the public UI at `https://komodo.willwagner.me` (TLS terminates at the
+  Nginx Proxy Manager host and proxies to Core on `general:9120`). Core also
+  publishes plain HTTP on port 9120 for direct/LAN access. The configured
+  `KOMODO_HOST` must match that public proxy hostname. The initial admin is
+  created from `KOMODO_INIT_ADMIN_*` in `general/.env` on first launch.
+  Registration is disabled.
 - `media/komodo.yml` runs the Periphery agent in outbound mode: it connects to
   Core on general (`ws://10.0.0.16:9120`) and opens no inbound port on media.
   One-time setup: log in to Core and open Settings / Onboarding. For a new
