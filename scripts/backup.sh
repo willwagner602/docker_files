@@ -39,6 +39,8 @@ BACKUP_AT=${BACKUP_AT:-04:00}
 KEEP_DAILY=${KEEP_DAILY:-7}
 KEEP_WEEKLY=${KEEP_WEEKLY:-11}
 KEEP_MONTHLY=${KEEP_MONTHLY:-9}
+# Defaults used by stacks that do not set EXCLUDES (currently media). A stack
+# that sets EXCLUDES replaces this entire list; values are not merged.
 # Patterns passed to zip -x. Databases here are hot-copied by design (media's
 # Postgres databases go through pg_dump sidecars instead); these four patterns
 # skip SQLite side files that are meaningless mid-write. NOTE: patterns must

@@ -21,10 +21,9 @@ services:
         max-file: "3"
     labels:
       komodo.skip: # Prevent Komodo from stopping its own DB with StopAllContainers
-    # mongod's built-in FTDC diagnostic.data metrics (support-bundle data
-    # this setup never sends to Mongo support) default to a 500 MB cap;
-    # 25 MB keeps roughly a day of 1-second samples on disk (a 10 MB
-    # metrics file holds ~16h at the default sample rate).
+    # FTDC provides short-lived metrics useful for diagnosing local MongoDB
+    # issues, so keep it enabled but bound its on-disk footprint. MongoDB's
+    # directory-size cap defaults to 500 MB; 25 MB is a deliberate tradeoff.
     command: --quiet --wiredTigerCacheSizeGB 0.25 --setParameter diagnosticDataCollectionDirectorySizeMB=25
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${KOMODO_DATABASE_USERNAME:?set in general/.env}
@@ -55,7 +54,7 @@ services:
       - KOMODO_DATABASE_ADDRESS=komodo-mongo:27017
       - KOMODO_DATABASE_USERNAME=${KOMODO_DATABASE_USERNAME}
       - KOMODO_DATABASE_PASSWORD=${KOMODO_DATABASE_PASSWORD}
-      - KOMODO_HOST=https://komodo.willwagner.me
+      - KOMODO_HOST=https://komodo.willwagner.me # Must match NPM proxy host; see README
       - KOMODO_LOCAL_AUTH=true
       - KOMODO_INIT_ADMIN_USERNAME=${KOMODO_INIT_ADMIN_USERNAME:-admin}
       - KOMODO_INIT_ADMIN_PASSWORD=${KOMODO_INIT_ADMIN_PASSWORD:?set in general/.env}
