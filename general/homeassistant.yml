@@ -3,7 +3,7 @@ services:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable@sha256:b82fab7973fa1ba5eb69a8aaab3a830d56d986d495d894faf0ee969ad27839a6"
     volumes:
-      - /home/wbw/docker:/config
+      - /mnt/halfToshibaB/docker/data/homeassistant:/config
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
     logging:

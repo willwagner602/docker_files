@@ -69,6 +69,10 @@ usage() {
 # (media does this — its lock must never reach Google Drive, and each host's
 # lock is then its own business).
 run_backup() (
+  # Absolutize DEST_DIR before any cd: $staging is computed from it and used
+  # after descending into the staging dir, so a relative DEST_DIR (test
+  # harness scratch dirs) would resolve inside $work and fail zip.
+  case $DEST_DIR in /*) ;; *) DEST_DIR="$PWD/$DEST_DIR" ;; esac
   mkdir -p "$DEST_DIR"
   lock_dir=${BACKUP_LOCK_DIR:-$DEST_DIR}
   mkdir -p "$lock_dir"
