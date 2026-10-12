@@ -197,10 +197,14 @@ mkdir -p "$fake/backups" "$fake/diagnostic.data" "$jobfake/production-artifacts/
 : > "$fake/home-assistant.log.1"
 : > "$fake/diagnostic.data/metrics.20261001T000000Z"
 : > "$jobfake/production-artifacts/run-1/fetched.json"
-: > "$jobfake/state.json"
-volfake="$dirD/volume-roots/komodo-mongo-data/diagnostic.data"
-mkdir -p "$volfake"
-: > "$volfake/metrics.20261001T000000Z"
+# Real durable job-digest state files (see general/job-digest.yml);
+# hn-cache.json is a real file the service rewrites daily.
+: > "$jobfake/hn-cache.json"
+volfake="$dirD/volume-roots/komodo-mongo-data"
+mkdir -p "$volfake/diagnostic.data"
+: > "$volfake/diagnostic.data/metrics.20261001T000000Z"
+# A durable file in the named volume, to assert the volume itself is archived.
+: > "$volfake/WiredTiger.wt"
 negdir=$(mktemp_d)
 cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
@@ -229,9 +233,12 @@ if [ -n "$zipfile" ]; then
   unzip -l "$zipfile" | grep -q "config.yaml" \
     && ok "exclusions: included files still present" \
     || bad "exclusions: config.yaml missing from archive"
-  unzip -l "$zipfile" | grep -q "job-digest-state/state.json" \
+  unzip -l "$zipfile" | grep -q "job-digest-state/hn-cache.json" \
     && ok "exclusions: durable job-digest state remains included" \
     || bad "exclusions: durable job-digest state missing from archive"
+  unzip -l "$zipfile" | grep -q "docker-volumes/komodo-mongo-data/WiredTiger.wt" \
+    && ok "exclusions: named-volume durable state remains included" \
+    || bad "exclusions: named-volume durable state missing from archive"
 else
   bad "exclusions: no snapshot was created"
 fi
