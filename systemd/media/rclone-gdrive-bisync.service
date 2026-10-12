@@ -1,5 +1,5 @@
 # Bidirectional sync between Google Drive and /bigdisk/google-drive.
-# Replaces the former one-way rclone-gdrive-sync pull (hourly timer).
+# Replaces the former every-minute one-way rclone-gdrive-sync pull.
 #
 # The bisync state in /var/lib/rclone/bisync was initialized 2026-10-12 with
 # `--resync --resync-mode path1` (Drive wins conflicts). Regular runs reuse
