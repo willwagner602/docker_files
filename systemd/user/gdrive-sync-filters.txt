@@ -1,0 +1,9 @@
+# Filters shared by both gdrive bisync jobs. Excludes Windows junk and
+# Google-Editor shortcut files that bisync can't treat as normal files.
+- desktop.ini
+- *.gsheet
+- *.gdoc
+- *.gslides
+- *.gform
+- *.gdraw
+- *.lnk

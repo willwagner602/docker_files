@@ -304,6 +304,15 @@ sudo cp systemd/rclone-gdrive-sync.service systemd/rclone-immich-push.service \
 sudo systemctl daemon-reload
 ```
 
+### Desktop bisync (user units, desktop machine)
+
+The desktop machine (not this server) runs **two-way** bisync of its
+`Google Drive` folder against the same Drive — separate jobs, separate
+rclone remote (`google drive:`), systemd **user** units, plus a staleness
+alarm that fires only if nothing has synced for 6 h (between 10:00 and
+20:00). Scripts live in `scripts/gdrive-sync*.sh`, units in
+`systemd/user/`, setup and recovery in `systemd/user/README.md`.
+
 ## CouchDB backup and restore
 
 `/home/wbw/couchdb/data` is the authoritative state (databases and indexes); `/home/wbw/couchdb/etc` holds the `local.d` configuration, including the admin credential hash written on first start. Existing host backups of `/home/wbw` therefore cover CouchDB, with one consistency requirement: a copy taken while the container is running can capture a database mid-write. For a consistent copy, stop the service first:

@@ -1,0 +1,7 @@
+[Unit]
+Description=Bisync Slowby/Google Drive folder with Google Drive
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/gdrive-sync.sh
