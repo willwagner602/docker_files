@@ -53,9 +53,9 @@ The Drive sync would normally prune or churn the empty root `.bzvol` anchor
 directory. The bisync unit (`systemd/media/rclone-gdrive-bisync.service` in
 `docker_files`) excludes `.bzvol` — the directory itself and its contents —
 so rclone never lists, creates, or deletes it on either side. The former
-`rclone-preserve-bzvol.conf` drop-in source belonged to the removed one-way
-pull unit and is obsolete; it can be deleted with that unit's remaining
-references. Do not run a sync as a test without separate approval.
+`rclone-preserve-bzvol.conf` drop-in (installed as `90-preserve-bzvol.conf`)
+belonged to the removed one-way pull unit. Do not run a sync as a test
+without separate approval.
 
 ## Backup state and verification
 

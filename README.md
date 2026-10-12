@@ -38,7 +38,7 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
 | `homeassistant.yml` | Home Assistant | Independent host-networked service. |
-| `zwavejsui.yml` | Z-Wave JS UI | Independent service with its own network and persistent state. |
+| `zwavejsui.yml` | Z-Wave JS UI | Independent service with its own network and persistent state. The external `wbw_zwave-config` volume holds the authoritative live settings; restore from it. |
 | `pihole.yml` | Pi-hole | Independent DNS service. |
 | `nginx-proxy.yml` | Nginx Proxy Manager | Independent service on the shared `npm` Docker network. |
 | `unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname, so these services remain together. |
@@ -303,8 +303,8 @@ destination remains a separate setup.
 ### Google Drive sync
 
 The `gdrive:` remote (`~/.config/rclone/rclone.conf`) backs two host-level
-syncs. Their systemd units live in `systemd/media/` (not compose services)
-and are installed manually — they run on the host, not in containers:
+syncs. Their systemd units live in `systemd/media/` and are installed manually —
+they run on the host, not in containers:
 
 - `rclone-gdrive-bisync` — Drive ↔ `/bigdisk/google-drive`, hourly timer.
   Replaced the former every-minute one-way pull. The initial resync (Drive
@@ -315,6 +315,15 @@ and are installed manually — they run on the host, not in containers:
   contents — because the local `.bzvol` is the Backblaze client's bind-mount
   anchor (see `media/backblaze-wine/`). `--max-delete=500` caps deletions
   per run in either direction.
+
+Installing a unit shares state between the repo and the host but the
+lifecycles are independent: deleting a unit file from `systemd/media/` does
+not remove it from `/etc/systemd/system/` — disable and delete it there too
+(`sudo systemctl disable --now <unit>.timer; sudo rm
+/etc/systemd/system/<unit>.service ...`). The 2026-10-12 replacement of the
+one-way pull unit was done this way on both sides; the repo copy's removal
+happened in a later PR.
+
 - `rclone-immich-push` — all Immich originals
   (`/bigdisk/immich/library/upload/<user-uuid>`, ~1.2 TiB) →
   `gdrive:Immich Library`, daily at 00:00 UTC. Enabled 2026-10-12 after the
