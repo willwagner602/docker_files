@@ -1,6 +1,7 @@
 mcp_servers:
   home-assistant:
     transport: http
+    # Deliberate plaintext HTTP over the LAN; the bearer token is not stored in this repo.
     url: http://10.0.0.16:8123/api/mcp/assist
     default_enabled: false
     # Add auth.value: "Bearer <token>" in the global config before enabling.

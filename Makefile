@@ -13,7 +13,7 @@
 SHELL := /bin/sh
 STACKS := general media desktop
 
-.PHONY: check test validate hooks help
+.PHONY: check test validate hooks help install-gdrive check-gdrive
 
 help:
 	@echo "Targets:"
@@ -25,6 +25,7 @@ help:
 test:
 	@sh scripts/tests/health-notify/tests.sh
 	@sh scripts/tests/backup/tests.sh
+	@sh scripts/tests/gdrive-sync/tests.sh
 	@sh media/backblaze-wine/tests/tests.sh
 
 validate:
@@ -44,6 +45,36 @@ validate:
 	printf '\nAll compose stacks validated.\n'
 
 check: test validate
+
+# This target writes into the user's live bin/config directories. Require a
+# deliberate confirmation every time; the mount guard is an additional check.
+install-gdrive:
+	@set -eu; \
+	if [ "$(GDRIVE_INSTALL_CONFIRM)" != "YES" ]; then \
+	  echo "Refusing install: rerun with GDRIVE_INSTALL_CONFIRM=YES" >&2; exit 1; \
+	fi; \
+	if [ "$(GDRIVE_INSTALL)" != "1" ] && [ ! -d /run/media/wbw/Slowby ]; then \
+	  echo "not the desktop host — skipped (set GDRIVE_INSTALL=1 to override mount check)"; exit 0; \
+	fi; \
+	install -d ~/.local/bin ~/.config/systemd/user ~/.config/rclone; \
+	install -m 755 scripts/gdrive-sync.sh scripts/gdrive-sync-photos.sh scripts/gdrive-sync-alert.sh ~/.local/bin/; \
+	install -Dm 644 systemd/user/gdrive-sync.service systemd/user/gdrive-sync.timer ~/.config/systemd/user/; \
+	install -Dm 644 systemd/user/gdrive-sync-photos.service systemd/user/gdrive-sync-photos.timer ~/.config/systemd/user/; \
+	install -Dm 644 systemd/user/gdrive-sync-alert.service ~/.config/systemd/user/; \
+	install -Dm 644 systemd/user/gdrive-sync-filters.txt ~/.config/rclone/gdrive-sync-filters.txt
+
+# Report drift only; intentionally not part of make check / the pre-push gate.
+check-gdrive:
+	@set -eu; failed=0; \
+	for f in gdrive-sync.sh gdrive-sync-photos.sh gdrive-sync-alert.sh; do \
+	  if ! diff -q "scripts/$$f" "$$HOME/.local/bin/$$f" >/dev/null 2>&1; then echo "drift: scripts/$$f -> ~/.local/bin/$$f"; failed=1; fi; \
+	done; \
+	for f in gdrive-sync.service gdrive-sync.timer gdrive-sync-photos.service gdrive-sync-photos.timer gdrive-sync-alert.service; do \
+	  if ! diff -q "systemd/user/$$f" "$$HOME/.config/systemd/user/$$f" >/dev/null 2>&1; then echo "drift: systemd/user/$$f -> ~/.config/systemd/user/$$f"; failed=1; fi; \
+	done; \
+	if ! diff -q systemd/user/gdrive-sync-filters.txt "$$HOME/.config/rclone/gdrive-sync-filters.txt" >/dev/null 2>&1; then echo "drift: systemd/user/gdrive-sync-filters.txt -> ~/.config/rclone/gdrive-sync-filters.txt"; failed=1; fi; \
+	if [ "$$failed" -eq 0 ]; then echo "gdrive install copies match repository"; fi; \
+	exit "$$failed"
 
 # Install the pre-push hook. .git/hooks is not tracked by git, so this has to be
 # run once per clone. See scripts/hooks/pre-push for what it does and why it

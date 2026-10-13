@@ -1,0 +1,11 @@
+[Unit]
+Description=Staleness alarm for gdrive-sync (fires if no sync for 6 h, 10:00-20:00)
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/gdrive-sync-alert.sh
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=default.target

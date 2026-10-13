@@ -1,7 +1,9 @@
+# Pin executable sources: stdio children run inside Polytoken's process trust domain.
+# Pinned 2026-10-13; bump deliberately.
 mcp_servers:
   frigate:
     transport: stdio
     command: uvx
-    args: ["--from", "git+https://github.com/jakekeeys/frigate-mcp", "frigate-mcp"]
+    args: ["--from", "git+https://github.com/jakekeeys/frigate-mcp@8133a84bf6700b7515a4b1c8fb3c0c5f8112430e", "frigate-mcp"]
     default_enabled: false
     pass_env: ["PATH", "FRIGATE_URL"]
