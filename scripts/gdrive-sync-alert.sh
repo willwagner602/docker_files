@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Staleness alarm for gdrive-sync.
-# Each sync job writes the epoch timestamp of its last successful bisync to
-# its own marker file (last-sync.ok for the whole tree = "Google Drive",
-# last-sync-photos.ok for photos = "Google Drive Photos"). This watcher
+# Alarms name the job ("Google Drive" = whole tree, which covers Photos;
+# "Google Drive Photos" = photos pair only); markers are last-sync.ok and
+# last-sync-photos.ok. This watcher
 # checks both every minute and pops a critical notification + sound only
 # when BOTH conditions hold:
 #   - at least one job has not succeeded in at least STALE_HOURS, and
@@ -33,9 +33,8 @@ now=$(date +%s)
 [ -f "$OK_WHOLE" ] || date +%s > "$OK_WHOLE"
 [ -f "$OK_PHOTOS" ] || date +%s > "$OK_PHOTOS"
 
-# Atomic-enough marker read: copy first, then read the copy, so a marker
-# being rewritten concurrently is never read empty/half-written. Any
-# missing or garbage value reads as "just now" (trust-first).
+# Copy-then-read limits damage from a torn write; the trust-first fallback
+# (missing/garbage => now) is the actual guarantee against false alarms.
 read_ts() {
     tmp=$(mktemp) || { echo "$now"; return; }
     if cp "$1" "$tmp" 2>/dev/null && [ -s "$tmp" ]; then

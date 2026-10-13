@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Two-way sync: local "Slowby/Google Drive" folder <-> Google Drive (rclone remote "google drive:").
-# Whole-drive pass, run hourly (see gdrive-sync.timer). Photos-only runs every minute
+# Whole-tree pass, run hourly (see gdrive-sync.timer). Photos-only runs every minute
 # via gdrive-sync-photos.sh; both share a flock so they never overlap.
+# Live copy: ~/.local/bin/gdrive-sync.sh (desktop); repo edits do not install themselves.
 # Requires an initial `rclone bisync --resync` per path pair to establish the baseline.
 #
 # Live copy: ~/.local/bin/gdrive-sync.sh (desktop). Remote name/paths are
 # machine-specific; see systemd/user/README.md in this repo for the full setup.
+# Marker path is also read (and seeded) by gdrive-sync-alert.sh; rename in both places together.
 set -euo pipefail
 
 MOUNT_POINT="/run/media/wbw/Slowby"
@@ -36,9 +38,8 @@ fi
     --filters-file "$FILTERS_FILE" \
     --log-file "$LOG_FILE" \
     --log-level INFO \
+    --max-lock 2m --resilient --recover \
     "$@"
 
-# Record the last successful sync for the staleness alarm.
-if [ $? -eq 0 ]; then
-    date +%s > "${LOG_DIR}/last-sync.ok"
-fi
+# set -e already guarantees this only runs on bisync success; the marker feeds the staleness alarm.
+date +%s > "${LOG_DIR}/last-sync.ok"

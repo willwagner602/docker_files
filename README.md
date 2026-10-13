@@ -185,16 +185,16 @@ directly in Polytoken.
    replace the Komodo placeholders with the Core URL and API credentials. Keep
    real values in the ignored `.env`, never the tracked example. The Komodo key
    should belong to a user with only the needed read grants. Optional variables
-   for UniFi, Pi-hole, and Frigate are listed in the example; they are for the
-   Polytoken process, not Compose.
+   for HA_TOKEN, UniFi, Pi-hole, and Frigate are listed in the example; they are
+   for the Polytoken process, not Compose.
 2. **Validate before starting anything.** From the repository root run
    `make validate`. This checks all Compose stacks using placeholder values and
    does not start containers. To validate Polytoken's merged global config, run
    `polytoken config validate`.
 3. **Start container-backed servers when ready.** From `desktop/`, run
    `docker compose up -d komodo-mcp arr-mcp`. Komodo requires the values in
-   `.env`; ARR starts its own local dashboard, which must be claimed and
-   configured with the *ARR services' own API keys* before the MCP server can
+   `.env`; ARR starts its own local dashboard; open it once to become its first owner,
+   then configure the ARR services' own API keys before the MCP server can
    use them. Its client endpoint is `http://127.0.0.1:6060/mcp`. Do not expose
    these unauthenticated local services beyond loopback.
 4. **Register clients in Polytoken.** For each desired server, copy the
@@ -210,15 +210,16 @@ directly in Polytoken.
    before connecting. The fragments list the variables passed to each client.
    Home Assistant auth is configured in its Polytoken entry as
    `auth.value: "Bearer <long-lived access token>"`; do not put the token in a
-   tracked file. GitHub authentication should be configured using the supported
-   Polytoken HTTP auth mechanism and a locally supplied credential.
+   tracked file. Configure GitHub auth the same way: `auth: authorization-header`
+   and `auth.value: "Bearer <token>"` on the `github:` entry in
+   `~/.config/polytoken/config.yaml`.
 6. **Connect and check.** Run `polytoken config validate`, then inspect the
    server tools with `polytoken doctor` and connect individually using `/mcp`.
    Enable a server only after its endpoint and credentials work and you have
    reviewed whether its tools can change or delete data.
 
 GitHub and Context7 are hosted HTTP endpoints; Home Assistant and ARR are HTTP
-endpoints on your network/host. Playwright, UniFi, Pi-hole, and Frigate are
+endpoints on the LAN or this host. Playwright, UniFi, Pi-hole, and Frigate are
 stdio clients. Pi-hole is configured read-only. ARR, UniFi, Home Assistant, and
 Frigate can expose mutating actions; review their tools before enabling them.
 For Komodo, `MCP_AUTH_ENABLED=false` plus the category allowlist and explicit
@@ -308,10 +309,12 @@ sudo systemctl daemon-reload
 
 The desktop machine (not this server) runs **two-way** bisync of its
 `Google Drive` folder against the same Drive — separate jobs, separate
-rclone remote (`google drive:`), systemd **user** units, plus a staleness
-alarm that fires only if nothing has synced for 6 h (between 10:00 and
-20:00). Scripts live in `scripts/gdrive-sync*.sh`, units in
-`systemd/user/`, setup and recovery in `systemd/user/README.md`.
+rclone remote (`google drive:`), systemd **user** units, plus a
+staleness alarm that fires if a job has not succeeded in at least 6 h
+(checked every 60 s), sounding only between 10:00 and 20:00. “Success” means
+that run's log contains `Bisync successful`. Scripts live in
+`scripts/gdrive-sync*.sh`, units in `systemd/user/`, setup and recovery in
+`systemd/user/README.md`.
 
 ## CouchDB backup and restore
 

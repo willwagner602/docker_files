@@ -1,3 +1,4 @@
+# These *.yaml fragments are templates; mirror edits into ~/.config/polytoken/config.yaml by hand (README step 4).
 # MCP servers — local Model Context Protocol services for Polytoken agents.
 #
 # This is an aggregation layer, not a service definition. It exists so the MCP

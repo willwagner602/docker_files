@@ -1,7 +1,9 @@
+# Pin executable versions: stdio children run inside Polytoken's process trust domain.
+# Pinned 2026-10-13; bump deliberately.
 mcp_servers:
   unifi:
     transport: stdio
     command: uvx
-    args: ["unifi-network-mcp@latest"]
+    args: ["unifi-network-mcp@0.37.2"]
     default_enabled: false
     pass_env: ["PATH", "UNIFI_HOST", "UNIFI_USERNAME", "UNIFI_PASSWORD"]

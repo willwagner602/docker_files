@@ -7,8 +7,9 @@ machine as systemd user units** — these are machine-local, not compose
 services, and live outside the container stack like the server-side
 `systemd/rclone-*.service` units.
 
-Canonical local documentation: `~/work/computer-fixes/gdrive-sync.md` (this
-file mirrors it in summary form).
+This in-repo file is the version reviewers and CI can see. The desktop-local
+`~/work/computer-fixes/gdrive-sync.md` is a separate machine-local mirror; keep
+both current.
 
 ## Jobs
 
@@ -42,23 +43,37 @@ file mirrors it in summary form).
 ## Important details
 
 - **rclone binary**: `~/.local/bin/rclone` (v1.75.1, NOT `/usr/bin/rclone` —
-  Ubuntu ships 1.60.1, whose bisync cannot handle Google-Docs listings
-  created by `--drive-import-formats`; that bug poisoned the sync state in
-  2025-09. See rclone issue #5696).
+  Ubuntu ships 1.60.1, whose bisync could not handle Google-Docs listings
+  created by `--drive-import-formats`; this was confirmed by upstream issue
+  #5696, but current behavior has not been re-verified after rclone 1.75.1).
 - **Locking**: both sync jobs share `flock` on
   `$XDG_RUNTIME_DIR/gdrive-sync.lock`. Whole-tree waits up to 240s;
   photos is non-blocking (skips a tick if busy).
 - **Separate bisync state per pair**: the photos job uses its own path
   pair, so its listings live in distinct files under `~/.cache/rclone/bisync/`.
   Do not sync the same two paths with different filters files — bisync
-  stores a filters hash and will demand a `--resync`.
+  stores a filters hash and will demand a `--resync`. The shared flock is the
+  only guard against overlap between the Photos subtree and whole-tree pair;
+  always invoke these syncs through the scripts.
+- Staleness and success-marker behavior below is code-derived (scripts + unit
+  files in this directory).
 - The `google drive{VTj1f}` name in logs is rclone's config-hash suffix for
   command-line `--drive-import-formats`. Harmless.
-- **Electric-header columns** (`gdrive-sync.sh` passes extra args through to
-  rclone via `"$@"`); the alarm writes to `~/.local/state/gdrive-sync/`
-  which must persist across reboots (it does, under `$HOME`).
+- **Argument pass-through**: `"$@"` forwards extra arguments to rclone. This
+  is how `--resync` is passed; it can mutate both sides of the pair.
+- **Success marker**: each job writes `~/.local/state/gdrive-sync/last-sync*.ok`
+  (epoch seconds) on success. The state directory is under `$HOME`, so it
+  persists across reboots.
+- The arr client endpoint and Compose port mapping are configured separately;
+  keep them in sync by hand.
 
 ## Install
+
+`make install-gdrive` runs the install commands below only when
+`/run/media/wbw/Slowby` exists, a host-appropriateness check for this desktop.
+Set `GDRIVE_INSTALL=1` to override the guard explicitly. `make check-gdrive`
+compares the installed scripts, units, and filters with the repository; it is
+standalone and is not part of `make check` or the pre-push gate.
 
 ```sh
 cd ~/work/docker_files
@@ -102,8 +117,10 @@ rm -rf ~/.cache/rclone/bisync
 ~/.local/bin/gdrive-sync-photos.sh --resync
 ```
 
-A killed/critical run leaves a stale `*.lck` in `~/.cache/rclone/bisync/`;
-delete it once no bisync process is running.
+The scripts use `--max-lock 2m` to expire stale locks and `--recover` to
+resume after interruptions without `--resync` in the common case. If recovery
+still fails, first confirm no bisync process is running; only then, as a
+last resort, delete the stale `*.lck` in `~/.cache/rclone/bisync/`.
 
 ## Status checks
 
