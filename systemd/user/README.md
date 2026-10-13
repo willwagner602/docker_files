@@ -51,10 +51,11 @@ both current.
   photos is non-blocking (skips a tick if busy).
 - **Separate bisync state per pair**: the photos job uses its own path
   pair, so its listings live in distinct files under `~/.cache/rclone/bisync/`.
-  Do not sync the same two paths with different filters files — bisync
-  stores a filters hash and will demand a `--resync`. The shared flock is the
-  only guard against overlap between the Photos subtree and whole-tree pair;
-  always invoke these syncs through the scripts.
+  Both pairs currently use the same filters file. Changing it changes the filter
+  hash for both pairs and can require `--resync`; do not run the same pair with
+  different filters files. The shared flock is the only guard against overlap
+  between the Photos subtree and whole-tree pair; always invoke these syncs
+  through the scripts.
 - Staleness and success-marker behavior below is code-derived (scripts + unit
   files in this directory).
 - The `google drive{VTj1f}` name in logs is rclone's config-hash suffix for
@@ -71,6 +72,8 @@ both current.
 
 `make install-gdrive` runs the install commands below only when
 `/run/media/wbw/Slowby` exists, a host-appropriateness check for this desktop.
+Install the required `~/.local/bin/rclone` v1.75.1 separately before enabling
+these units.
 Set `GDRIVE_INSTALL=1` to override the guard explicitly. `make check-gdrive`
 compares the installed scripts, units, and filters with the repository; it is
 standalone and is not part of `make check` or the pre-push gate.
@@ -144,7 +147,8 @@ cat ~/.local/state/gdrive-sync/last-sync.ok ~/.local/state/gdrive-sync/last-sync
   Library` hash dirs — directories deleted mid-run, likely Immich churn).
   Watcher alarmed on each retry. Later that day the watcher was replaced
   with a staleness alarm (fires only if a job has not succeeded in 6 h,
-  only 10:00–20:00, at most hourly repeats). Whole-tree still needs
-  `--resync` to recover; photos healthy.
+  only 10:00–20:00, at most hourly repeats). At that point, the whole-tree
+  pair still needed a manual `--resync`; the recovery flags added later are
+  intended to handle interruptions without it in the common case. Photos healthy.
 - 2026-10-12: scripts and units copied into this repo (`scripts/` +
   `systemd/user/`) with `systemd/user/README.md` as the setup doc.

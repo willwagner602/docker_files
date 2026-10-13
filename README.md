@@ -312,7 +312,8 @@ The desktop machine (not this server) runs **two-way** bisync of its
 rclone remote (`google drive:`), systemd **user** units, plus a
 staleness alarm that fires if a job has not succeeded in at least 6 h
 (checked every 60 s), sounding only between 10:00 and 20:00. “Success” means
-that run's log contains `Bisync successful`. Scripts live in
+the bisync command exited successfully and its script wrote the job's marker.
+Scripts live in
 `scripts/gdrive-sync*.sh`, units in `systemd/user/`, setup and recovery in
 `systemd/user/README.md`.
 
