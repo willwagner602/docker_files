@@ -20,7 +20,7 @@ services:
       MINDWTR_CLOUD_TRUST_PROXY_HEADERS: ${MINDWTR_CLOUD_TRUST_PROXY_HEADERS:-}
       MINDWTR_CLOUD_TRUSTED_PROXY_IPS: ${MINDWTR_CLOUD_TRUSTED_PROXY_IPS:-}
     volumes:
-      - /home/wbw/mindwtr:/app/cloud_data
+      - /mnt/halfToshibaB/docker/data/mindwtr:/app/cloud_data
     networks:
       - mindwtr-net
 

@@ -27,13 +27,14 @@ cfg = json.load(open(sys.argv[1]))
 stack = sys.argv[2]
 # When the suite resolves compose config from a throwaway copy, relative
 # mounts (../scripts/...) point into the temp dir; map them back to the
-# canonical deployment path.
+# canonical deployment path supplied by the test harness.
 temp_prefix = sys.argv[3] if len(sys.argv) > 3 else ""
+canonical_root = sys.argv[4] if len(sys.argv) > 4 else ""
 
 
 def norm(p):
-    if temp_prefix and p.startswith(temp_prefix):
-        p = "/home/wbw/docker_files" + p[len(temp_prefix):]
+    if temp_prefix and canonical_root and p.startswith(temp_prefix):
+        p = canonical_root + p[len(temp_prefix):]
     return p.rstrip("/") if len(p) > 1 else p
 
 services = cfg.get("services", {})
