@@ -147,11 +147,10 @@ check_stack() { # $1 = stack directory name
 
   canonical_root=$(python3 - "$work/cfg.json" <<'PY'
 import json
-import os
 import sys
 env = json.load(open(sys.argv[1]))["services"]["backup"]["environment"]
-paths = env.get("EXTRA_BACKUP_PATHS", "")
-print(next((p for p in paths.split() if os.path.basename(p) == "docker_files"), ""))
+script = next((p for p in env.get("EXCLUDED_MOUNTS", "").split() if p.endswith("/scripts/health-notify.sh")), "")
+print(script[:-len("/scripts/health-notify.sh")] if script else "")
 PY
   )
   if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work" "$canonical_root"; then
