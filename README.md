@@ -38,7 +38,7 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | Compose file | Services | Why they are grouped |
 | --- | --- | --- |
 | `homeassistant.yml` | Home Assistant | Independent host-networked service. |
-| `zwavejsui.yml` | Z-Wave JS UI | Independent service with its own network and persistent state. |
+| `zwavejsui.yml` | Z-Wave JS UI | Independent service with its own network and persistent state. The external `wbw_zwave-config` volume holds the authoritative live settings; restore from it. |
 | `pihole.yml` | Pi-hole | Independent DNS service. |
 | `nginx-proxy.yml` | Nginx Proxy Manager | Independent service on the shared `npm` Docker network. |
 | `unifi.yml` | UniFi Network Application, MongoDB | UniFi uses `unifi-db` as its MongoDB hostname, so these services remain together. |
@@ -139,14 +139,19 @@ Docker and service status across both hosts, with notifications (Telegram et
 al., configured in the UI), per-container logs, and restart controls.
 
 - `general/komodo.yml` runs Core (+ MongoDB) and the local Periphery agent.
-  The UI is at `http://<general-host>:9120`; the initial admin is created from
-  `KOMODO_INIT_ADMIN_*` in `general/.env` on first launch. Registration is
-  disabled.
+  Open the public UI at `https://komodo.willwagner.me` (TLS terminates at the
+  Nginx Proxy Manager host and proxies to Core on `general:9120`). Core also
+  publishes plain HTTP on port 9120 for direct/LAN access. The configured
+  `KOMODO_HOST` must match that public proxy hostname. The initial admin is
+  created from `KOMODO_INIT_ADMIN_*` in `general/.env` on first launch.
+  Registration is disabled.
 - `media/komodo.yml` runs the Periphery agent in outbound mode: it connects to
   Core on general (`ws://10.0.0.16:9120`) and opens no inbound port on media.
-  One-time setup: log in to Core, create an onboarding key with privileged mode
-  (Settings / Onboarding), put it in `media/.env` as `PERIPHERY_ONBOARDING_KEY`,
-  then `docker compose up -d komodo-periphery`.
+  One-time setup: log in to Core and open Settings / Onboarding. For a new
+  `media` server, create a least-privilege onboarding key, put it in `media/.env`
+  as `PERIPHERY_ONBOARDING_KEY`, and run `docker compose up -d komodo-periphery`.
+  Use a privileged onboarding key only when replacing the expected key for an
+  existing Core server record.
 
 The Periphery agents mount the raw docker socket by design: they are management
 agents that need write access (restart/stop, log reads), which the read-only
@@ -154,6 +159,29 @@ socket-proxy deliberately does not provide. Komodo's Mongo state and agent keys
 are covered by the backup services; Komodo's own alerting is configured in the
 UI (Settings / Alerters).
 
+### Telegram Custom Alerter bridge
+
+`general/telegram-alerter.yml` adds the community
+[`komodo-telegram-alerter`](https://github.com/SashaBusinaro/komodo-telegram-alerter)
+service to the general Compose stack. It is attached only to the internal
+`general-komodo-alerts` network shared with Komodo Core; port 3000 is not
+published on the host. In Komodo, create a Custom Alerter with endpoint:
+
+```text
+http://komodo-telegram-alerter:3000/alert?token=[[TELEGRAM_BOT_TOKEN]]&chat_id=[[TELEGRAM_CHAT_ID]]
+```
+
+Create `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` as secret variables in
+Komodo's Settings / Variables. These values must match the bot and destination
+chat used by the existing health notifier. The bridge's README documents these
+credentials in the endpoint URL and does not document endpoint authentication,
+so keep it isolated on this network and never publish port 3000. The upstream
+Compose example uses a mutable `latest` image tag and provides no healthcheck; this
+stack pins a verified image digest instead, and the bridge documents no health
+endpoint, so watch it via container logs.
+
+The bridge image itself does not run in the backup coverage test because it has
+no persistent mounts.
 ### Agent access to Komodo
 
 `desktop/mcp-servers/komodo-mcp.yml` runs a read-only MCP server so agent sessions can ask
@@ -185,16 +213,26 @@ directly in Polytoken.
    replace the Komodo placeholders with the Core URL and API credentials. Keep
    real values in the ignored `.env`, never the tracked example. The Komodo key
    should belong to a user with only the needed read grants. Optional variables
+<<<<<<< HEAD
    for HA_TOKEN, UniFi, Pi-hole, and Frigate are listed in the example; they are
    for the Polytoken process, not Compose.
+=======
+   for UniFi, Pi-hole, and Frigate are listed in the example; they are for the
+   Polytoken process, not Compose.
+>>>>>>> origin/main
 2. **Validate before starting anything.** From the repository root run
    `make validate`. This checks all Compose stacks using placeholder values and
    does not start containers. To validate Polytoken's merged global config, run
    `polytoken config validate`.
 3. **Start container-backed servers when ready.** From `desktop/`, run
    `docker compose up -d komodo-mcp arr-mcp`. Komodo requires the values in
+<<<<<<< HEAD
    `.env`; ARR starts its own local dashboard; open it once to become its first owner,
    then configure the ARR services' own API keys before the MCP server can
+=======
+   `.env`; ARR starts its own local dashboard, which must be claimed and
+   configured with the *ARR services' own API keys* before the MCP server can
+>>>>>>> origin/main
    use them. Its client endpoint is `http://127.0.0.1:6060/mcp`. Do not expose
    these unauthenticated local services beyond loopback.
 4. **Register clients in Polytoken.** For each desired server, copy the
@@ -272,37 +310,52 @@ state back (re-apply ownership where the service is picky — CouchDB needs
 `docker volume create` + copy, and start the services. Each zip contains a
 `backup-manifest.txt` declaring exactly what it covers.
 
-Off-box replication is a follow-up: point `rclone move` (or `restic`) at the
-"Server Backups" directory once a Google Drive remote is configured.
+The media host replicates its "Server Backups" directory to Google Drive via
+the hourly bisync below. Off-box replication for the general host's backup
+destination remains a separate setup.
 
 ### Google Drive sync
 
 The `gdrive:` remote (`~/.config/rclone/rclone.conf`) backs two host-level
-one-way syncs. Their systemd units live in `systemd/` (not compose services)
-and are installed manually — they run on the host, not in containers:
+syncs. Their systemd units live in `systemd/media/` and are installed manually —
+they run on the host, not in containers:
 
-- `rclone-gdrive-sync` — Drive → `/bigdisk/google-drive`, triggered every
-  minute. This mirror is how Google Photos reaches immich (`media/immich.yml`
-  mounts `Photos/` read-only) and how the backup zips above land on Drive. It
-  excludes `Immich Library/`, which is push-only (see below), so the pushed
-  mirror isn't copied back onto `/bigdisk`.
+- `rclone-gdrive-bisync` — Drive ↔ `/bigdisk/google-drive`, hourly timer.
+  Replaced the former every-minute one-way pull. The initial resync (Drive
+  wins conflicts) was run 2026-10-12; its state lives in
+  `/var/lib/rclone/bisync` and regular runs must reuse it — never add
+  `--resync` outside a deliberate recovery. Excludes `Immich Library/**`
+  (owned by the push below) and `.bzvol` — the directory itself and its
+  contents — because the local `.bzvol` is the Backblaze client's bind-mount
+  anchor (see `media/backblaze-wine/`). `--max-delete=500` caps deletions
+  per run in either direction.
+
+Installing a unit shares state between the repo and the host but the
+lifecycles are independent: deleting a unit file from `systemd/media/` does
+not remove it from `/etc/systemd/system/` — disable and delete it there too
+(`sudo systemctl disable --now <unit>.timer; sudo rm
+/etc/systemd/system/<unit>.service ...`). The 2026-10-12 replacement of the
+one-way pull unit was done this way on both sides; the repo copy's removal
+happened in a later PR.
+
 - `rclone-immich-push` — all Immich originals
   (`/bigdisk/immich/library/upload/<user-uuid>`, ~1.2 TiB) →
-  `gdrive:Immich Library`, daily. Installed but deliberately left disabled:
-  the 2 TiB Drive plan has ~1.1 TiB free, short of the full mirror. Once
-  Drive space is cleared, enable with
-  `sudo systemctl enable --now rclone-immich-push.timer`. The first run takes
-  days (Google caps API uploads around 750 GiB/day);
-  `--drive-stop-on-upload-limit` ends each run at the cap and the timer
-  resumes from there.
+  `gdrive:Immich Library`, daily at 00:00 UTC. Enabled 2026-10-12 after the
+  Drive quota showed ~1.5 TiB free. The first run takes days (Google caps
+  API uploads around 750 GiB/day); `--drive-stop-on-upload-limit` ends each
+  run at the cap and the timer resumes from there.
 
 Install after cloning or editing:
 
 ```sh
 cd /home/wbw/docker_files
-sudo cp systemd/rclone-gdrive-sync.service systemd/rclone-immich-push.service \
-    systemd/rclone-immich-push.timer /etc/systemd/system/
+sudo cp systemd/media/rclone-gdrive-bisync.service \
+    systemd/media/rclone-gdrive-bisync.timer \
+    systemd/media/rclone-immich-push.service \
+    systemd/media/rclone-immich-push.timer \
+    /etc/systemd/system/
 sudo systemctl daemon-reload
+sudo systemctl enable --now rclone-gdrive-bisync.timer rclone-immich-push.timer
 ```
 
 ### Desktop bisync (user units, desktop machine)

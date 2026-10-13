@@ -1,0 +1,45 @@
+# Bidirectional sync between Google Drive and /bigdisk/google-drive.
+# Replaces the former every-minute one-way rclone-gdrive-sync pull.
+#
+# The bisync state in /var/lib/rclone/bisync was initialized 2026-10-12 with
+# `--resync --resync-mode path1` (Drive wins conflicts). Regular runs reuse
+# that state: never add --resync here outside a deliberate recovery.
+#
+# Excludes:
+#   Immich Library/**    — owned by rclone-immich-push; bisync must not mirror
+#                          it back down or push it a second time.
+#   /.bzvol + /.bzvol/** — the local .bzvol is an empty bind-mount anchor for
+#                          the Backblaze client's drive marker (see
+#                          media/backblaze-wine/). Excluding the directory
+#                          itself keeps rclone from listing, creating, or
+#                          deleting it on either side; the contents exclude
+#                          covers the case where it ever gains files.
+[Unit]
+Description=Bidirectional sync: Google Drive <-> /bigdisk/google-drive
+Documentation=https://rclone.org/bisync/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=wbw
+Group=wbw
+Nice=15
+IOSchedulingClass=idle
+
+# flock so a long run cannot overlap the next timer hit.
+ExecStart=/usr/bin/flock -n /run/lock/rclone-gdrive-bisync.lock /home/wbw/.local/bin/rclone bisync gdrive: /bigdisk/google-drive \
+    --config=/home/wbw/.config/rclone/rclone.conf \
+    --workdir=/var/lib/rclone/bisync \
+    --fast-list \
+    --transfers=8 \
+    --checkers=16 \
+    --track-renames \
+    --create-empty-src-dirs \
+    --max-delete=500 \
+    --exclude "Immich Library/**" \
+    --exclude "/.bzvol" \
+    --exclude "/.bzvol/**" \
+    --retries=3 \
+    --low-level-retries=10 \
+    --log-level=INFO

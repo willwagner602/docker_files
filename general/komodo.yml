@@ -21,7 +21,10 @@ services:
         max-file: "3"
     labels:
       komodo.skip: # Prevent Komodo from stopping its own DB with StopAllContainers
-    command: --quiet --wiredTigerCacheSizeGB 0.25
+    # FTDC provides short-lived metrics useful for diagnosing local MongoDB
+    # issues, so keep it enabled but bound its on-disk footprint. MongoDB's
+    # directory-size cap defaults to 500 MB; 25 MB is a deliberate tradeoff.
+    command: --quiet --wiredTigerCacheSizeGB 0.25 --setParameter diagnosticDataCollectionDirectorySizeMB=25
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${KOMODO_DATABASE_USERNAME:?set in general/.env}
       - MONGO_INITDB_ROOT_PASSWORD=${KOMODO_DATABASE_PASSWORD:?set in general/.env}
@@ -41,6 +44,9 @@ services:
         max-file: "3"
     depends_on:
       - komodo-mongo
+    networks:
+      - default
+      - komodo-alerts
     ports:
       - "9120:9120"
     environment:
@@ -48,6 +54,7 @@ services:
       - KOMODO_DATABASE_ADDRESS=komodo-mongo:27017
       - KOMODO_DATABASE_USERNAME=${KOMODO_DATABASE_USERNAME}
       - KOMODO_DATABASE_PASSWORD=${KOMODO_DATABASE_PASSWORD}
+      - KOMODO_HOST=https://komodo.willwagner.me # Must match NPM proxy host; see README
       - KOMODO_LOCAL_AUTH=true
       - KOMODO_INIT_ADMIN_USERNAME=${KOMODO_INIT_ADMIN_USERNAME:-admin}
       - KOMODO_INIT_ADMIN_PASSWORD=${KOMODO_INIT_ADMIN_PASSWORD:?set in general/.env}
@@ -94,6 +101,10 @@ services:
       # Only used by Komodo-managed stacks/repos — not used in this
       # monitoring-only setup.
       - /etc/komodo:/etc/komodo
+
+networks:
+  komodo-alerts:
+    name: general-komodo-alerts
 
 volumes:
   komodo-mongo-data:

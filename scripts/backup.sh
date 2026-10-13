@@ -39,12 +39,17 @@ BACKUP_AT=${BACKUP_AT:-04:00}
 KEEP_DAILY=${KEEP_DAILY:-7}
 KEEP_WEEKLY=${KEEP_WEEKLY:-11}
 KEEP_MONTHLY=${KEEP_MONTHLY:-9}
+# Defaults used by stacks that do not set EXCLUDES (currently media). A stack
+# that sets EXCLUDES replaces this entire list; values are not merged.
 # Patterns passed to zip -x. Databases here are hot-copied by design (media's
 # Postgres databases go through pg_dump sidecars instead); these four patterns
 # skip SQLite side files that are meaningless mid-write. NOTE: patterns must
 # NOT start with "*/" — zip's matcher needs * to consume at least one
 # character, so a leading "*/" never matches a relative archive path.
-EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm}
+EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *ipc-socket}
+# *ipc-socket: runtime IPC sockets (e.g. qBittorrent's config/config/ipc-socket)
+# are not backup state; cp -a preserves them into staging and zip fails to
+# read them ("zip warning: No such device or address").
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S%z')" "$*"; }
 warn() { log "WARNING: $*" >&2; }
@@ -59,15 +64,22 @@ usage() {
 # ---------------------------------------------------------------------------
 
 # Take one snapshot. Runs in a subshell so the cleanup trap never touches the
-# scheduler loop. A lock directory prevents a manual --now run from racing the
-# nightly scheduler.
+# scheduler loop. The lock directory prevents a manual --now run from racing
+# the nightly scheduler of the same stack. It defaults to DEST_DIR; stacks
+# whose destination is a synced/cloud folder can point BACKUP_LOCK_DIR at a
+# local directory instead, keeping the lock out of the synced tree entirely
+# (media does this — its lock must never reach Google Drive, and each host's
+# lock is then its own business).
 run_backup() (
   mkdir -p "$DEST_DIR"
-  lock="$DEST_DIR/.backup-lock"
+  lock_dir=${BACKUP_LOCK_DIR:-$DEST_DIR}
+  mkdir -p "$lock_dir"
+  lock="$lock_dir/.backup-lock"
   if ! mkdir "$lock" 2>/dev/null; then
     if [ -d "$lock" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +720)" ]; then
       warn "stale lock (over 12h old) found; stealing it"
       rmdir "$lock" 2>/dev/null || { warn "another backup is running; aborting"; return 1; }
+      mkdir "$lock" 2>/dev/null || { warn "cannot recreate lock after steal; aborting"; return 1; }
     else
       warn "another backup is running; aborting"
       return 1

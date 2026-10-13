@@ -1,0 +1,16 @@
+# Community Komodo Custom Alerter bridge for Telegram.
+# Upstream: https://github.com/SashaBusinaro/komodo-telegram-alerter
+# Only Komodo Core can reach this service on the dedicated internal Docker network;
+# do not publish port 3000 because the endpoint includes Telegram credentials.
+services:
+  komodo-telegram-alerter:
+    # Pin the latest digest because this image publishes no version tags.
+    image: sashabusinaro/komodo-telegram-alerter@sha256:8ddf1b8dc4ad9a694eb8f818e87691979c5972c97e0d3f4b81b067ef33052c5f
+    container_name: komodo-telegram-alerter
+    restart: unless-stopped
+    networks:
+      - komodo-alerts
+
+networks:
+  komodo-alerts:
+    name: general-komodo-alerts

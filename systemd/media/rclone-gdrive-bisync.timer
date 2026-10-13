@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Google Drive <-> local bisync hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target

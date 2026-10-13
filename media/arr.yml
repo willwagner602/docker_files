@@ -1,3 +1,9 @@
+x-arr-healthcheck-defaults: &arr-healthcheck-defaults
+  interval: 30s
+  timeout: 10s
+  retries: 5
+  start_period: 90s
+
 services:
   sonarr:
     image: linuxserver/sonarr:3.0.10@sha256:4f69472a0cdea29e23967db6a3395487539b759def3920327d1f49ae00b9dfd4
@@ -17,10 +23,7 @@ services:
       - autoheal=true
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8989/ping >/dev/null"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
+      <<: *arr-healthcheck-defaults
   radarr:
     image: linuxserver/radarr:4.4.4@sha256:4d7f994cbf5f27ccae86c86bb600c2db7c7a0f2b106b58419241b1a1c4c3ea39
     container_name: radarr
@@ -39,10 +42,7 @@ services:
       - autoheal=true
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:7878/ping >/dev/null"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
+      <<: *arr-healthcheck-defaults
   whisparr:
     image: ghcr.io/hotio/whisparr:nightly@sha256:13f14e5cd86012f775cc07fe672cd279a295ef41605b8fc3ebfb47583bf50eac
     container_name: whisparr
@@ -57,12 +57,11 @@ services:
       - /bigdisk/plex/whisparr:/config
     ports:
       - 6969:6969/tcp
+    labels:
+      - autoheal=true
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:6969/ping >/dev/null"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 90s
+      <<: *arr-healthcheck-defaults
   stash:
     image: stashapp/stash:latest@sha256:df744af5a0c976e2ec671052ecc1f8a9aa757fa12b8f9930b59910b7295f0da6
     container_name: stash

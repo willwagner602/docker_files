@@ -1,0 +1,281 @@
+# rclone setup on wbw-ha (general stack host)
+#
+# Structured companion to the prose doc in the rclone-configs repo
+# (~/work/rclone-configs/wbw-ha.md) and the counterpart host document
+# media/rclone-config.md (wbw-media). Written to the same standard as the
+# systemd/media unit files. Host observations are dated below; repo-only
+# definitions and any installed-unit drift are called out explicitly. Secrets
+# (OAuth token, passwords) are deliberately NOT recorded here.
+#
+# Last verified: 2026-10-12.
+#
+# This is a DOCUMENTATION RECORD ONLY: nothing in the compose stack or CI
+# consumes this file (general/compose.yaml's include list does not reference
+# it, and `make validate` does not parse it). Keep it out of any compose
+# include list.
+
+host:
+  name: wbw-ha
+  os: Ubuntu 24.04            # kernel 6.8.0-139-generic, systemd 255
+  role: general               # runs this repo's `general` compose stack
+  remote_home: /home/wbw
+
+binary:
+  path: /usr/bin/rclone       # /bin/rclone resolves to it
+  version: v1.60.1-DEV       # older than wbw-media's v1.75.0: no --resync-mode
+                             # flag here; bisync recovery is a plain --resync
+
+config:
+  path: /home/wbw/.config/rclone/rclone.conf
+  mode: "0600"                # owner wbw only; contains the OAuth token
+  remotes:
+    - name: "google drive"   # configured remote name; rclone paths append ':'
+                              # differs from wbw-media's remote 'gdrive'
+      target: Google Drive root
+  note: remote config contents and secrets were never committed to this repo
+
+sync:
+  kind: bisync                # two-way; EXPERIMENTAL upstream. If a run fences
+                              # the listing state, plain runs keep failing until
+                              # recovery with --resync; see failure_modes.
+  path1: /mnt/smallHDD/google-drive/Server Backups   # local side; called Path1
+  path2: "google drive:Server Backups"  # rclone path syntax: remote name + colon
+  storage: /mnt/smallHDD      # ext4, /dev/sdb1, 183G
+  scope: single-subtree       # unlike wbw-media, which bisyncs the whole Drive
+                              # root; this host syncs only "Server Backups"
+  cache_dir: /home/wbw/.cache/rclone          # pinned in the unit's ExecStart;
+                              # holds the bisync listing database
+  state_files:                # ~/.cache/rclone/bisync/
+    listings: "<pair>.path1.lst / <pair>.path2.lst"   # canonical; rewritten by
+                              # every successful run ("Updating listings")
+    debris: "<pair>.*.lst-err / .lst-dry"   # fenced-run / dry-run leftovers,
+                              # harmless; documented in wbw-ha.md
+  log:
+    path: /home/wbw/.local/state/rclone/server-backups-bisync.log
+    writer: --log-file        # repo unit only; intended to preserve cron-era
+                              # timestamped format. Installed unit still uses
+                              # StandardOutput=append until DRIFT-WATCH is resolved;
+                              # that output is timestamp-less (not syslog-prefixed).
+    rotation: none observed   # last observed at 40 KB; revisit if it grows
+
+scheduler:
+  type: "systemd (system-level: /etc/systemd/system, User=wbw); migrated from
+    the wbw user crontab on 2026-10-12"
+  units:
+    service: /etc/systemd/system/rclone-server-backups-bisync.service
+      # Type=oneshot; Nice=15, IOSchedulingClass=idle (light-touch precedent
+      # from the media host's units); pins --config and --cache-dir so the
+      # job does not depend on how systemd sets HOME; logs via --log-file.
+    timer: /etc/systemd/system/rclone-server-backups-bisync.timer
+      # OnCalendar=hourly  -> minute 0 of every hour (== old cron 0 * * * *)
+      # Persistent=true    -> an hour missed while the machine is down runs
+      #                       once at next boot (catch-up, unlike cron which
+      #                       silently skips)
+  guards:
+    requires_mounts_for: /mnt/smallHDD/google-drive
+      # Unit configuration contains this guard; an actual unmount test was
+      # not performed because it could disrupt other services.
+    exclude: ".backup-lock/"    # repo unit only until DRIFT-WATCH is resolved;
+                              # directory exclude skips everything beneath it
+                              # too, so no trailing ** is needed.
+    no_flock: systemd does not run two instances of this unit concurrently;
+      if a start request arrives while it is active, systemd may queue another
+      run after completion. rclone also takes a pair-level lock under the cache
+      dir to reject concurrent bisyncs (see failure_modes on stale locks). The
+      cron-era flock file and unit-level flock are gone by design.
+  source_of_truth:
+    repo: /home/wbw/work/rclone-configs        # private GitHub
+                                               # willwagner602/rclone-configs
+    branch: master
+    paths:
+      - systemd/rclone-server-backups-bisync.service
+      - systemd/rclone-server-backups-bisync.timer
+      - archive/server-backups.cron             # verbatim pre-removal cron file
+      - wbw-ha.md                               # prose doc for this host
+  install_procedure:
+    - sudo install -m 0644 systemd/rclone-server-backups-bisync.service systemd/rclone-server-backups-bisync.timer /etc/systemd/system/
+    - sudo systemctl daemon-reload
+    - sudo systemctl enable --now rclone-server-backups-bisync.timer
+  install_status: DRIFT-WATCH
+    # The copy installed on 2026-10-12 predates the --exclude ".backup-lock/"
+    # and --log-file revision in the repo. Until reinstalled, hourly runs use
+    # the old ExecStart (stdout append; no exclude). The migration applied the
+    # filter without --resync after checking that the directory was absent and
+    # the canonical listings did not mention it; that was an observed-state
+    # exception, not a general rule. Before applying a filter without resync,
+    # re-check directory absence and run:
+    # `grep -l 'backup-lock' /home/wbw/.cache/rclone/bisync/*.lst`
+    # (no matches in canonical listings). Otherwise stop the timer and follow
+    # the guarded recovery procedure.
+  #
+  # COMPOSED DRIFT-WATCH RESOLUTION CHECKLIST — run every step in order; the
+  # rules it chains come from failure_modes.filter_changes (CLI filter change
+  # => treated as requiring --resync), the recovery block (guarded procedure),
+  # and no_delete_seatbelt (threshold decision):
+  #   1. Stop the timer: `sudo systemctl stop rclone-server-backups-bisync.timer`
+  #      and confirm no rclone process is running (pgrep -a rclone).
+  #   2. Preflight: the guarded recovery preflight checks above (findmnt,
+  #      directory populated, recent expected archives present, Drive side
+  #      checked with rclone lsf).
+  #   3. Install the current repo units (install_procedure above) and
+  #      daemon-reload; confirm the new ExecStart with
+  #      `systemctl cat rclone-server-backups-bisync.service`
+  #      (--exclude ".backup-lock/" and --log-file both present).
+  #   4. Because the reinstall changes the unit's CLI filters, run the guarded
+  #      resync: dry-run preview first (recovery.dry_run), review the proposed
+  #      Path2 deletes, then the real resync (recovery.resync) only if the
+  #      preview matches expected contents.
+  #   5. Decide the delete seatbelt for this pair (see no_delete_seatbelt;
+  #      default 50% abort applies unless you lower it) and record the choice
+  #      in the unit revision if you add the flag.
+  #   6. Verify one clean run: `sudo systemctl start
+  #      rclone-server-backups-bisync.service` exits 0 with "Bisync
+  #      successful", then re-enable the timer
+  #      (`sudo systemctl start rclone-server-backups-bisync.timer`) and clear
+  #      this DRIFT-WATCH status; keep install_status in sync with reality.
+
+backup_integration:
+  provider: general/backup.yml   # container backup-general (docker:29-cli)
+  script: ../scripts/backup.sh   # shared with the media stack, ROLE=general
+  schedule: BACKUP_AT=04:00 America/Los_Angeles
+  retention: KEEP_DAILY=7 / KEEP_WEEKLY=11 / KEEP_MONTHLY=9
+  drop_point: the backup container mounts the mirror at
+    "/mnt/smallHDD/google-drive/Server Backups:/backups" and writes
+    general-backup-<UTC>.zip there
+  lock:
+    path: inside the synced folder (".backup-lock", root-owned)
+      # KNOWN HAZARD: on wbw-media the same lock design ("Server Backups
+      # lock contended inside the synced folder") starved both stacks and
+      # was moved out to /bigdisk/backup-locks. Here it stayed inside the
+      # mirror; on 2026-10-12 04:01 it collided with bisync (see history).
+      # The repo's --exclude is the intended mitigation, but it is NOT active
+      # in the installed unit until DRIFT-WATCH is resolved. Relocating the
+      # lock out of the synced tree would be cleaner (not done yet).
+  latency: normally reaches Drive on the next successful hourly bisync, then
+    appears on wbw-media's mirror via that host's bisync; a fenced or failed
+    run can delay off-site copies by hours, as the incident history shows
+
+cross_host:
+  counterpart: wbw-media  # documented in media/rclone-config.md
+  topology:
+    - "this host: Server Backups subtree <-> Drive (single-subtree bisync)"
+    - "wbw-media: entire Drive root <-> /bigdisk/google-drive (full bisync)
+      plus a daily one-way Immich push (units: rclone-gdrive-bisync.*,
+      rclone-immich-push.* under systemd/media/)"
+  flow: "general-backup-*.zip written here ride this host's bisync up, then
+    wbw-media's bisync down. media-backup-*.zip travel the reverse path. The
+    nightly archives therefore exist in three places — local disk (both
+    hosts) and Drive."
+
+history:
+  - date: 2026-10-12 04:01
+    event: FENCE INCIDENT. The 04:00 backup run left the root-owned
+      ".backup-lock/pid" inside the synced folder; bisync hit "permission
+      denied" renaming it mid-run, fenced off its own listing state, and
+      every later run aborted with "Bisync aborted. Must run --resync to
+      recover." Every scheduled run from 05:00 to 11:00 failed silently
+      (cron only wrote to the log; nothing alerted).
+  - date: 2026-10-12 11:12
+    event: Manual recovery — plain bisync --resync (same paths, --config,
+      --cache-dir). Reconciled 1.739 GiB (two zips were pending from the
+      failed runs) and rebuilt path1.lst/path2.lst. Exit 0.
+  - date: 2026-10-12 11:31
+    event: Manual verification start of the systemd service (exit 0,
+      "Bisync successful", "No changes found" — state continuity held).
+  - date: 2026-10-12 11:45
+    event: "Cron retired after the timer was enabled and registered for the
+      next hour by `systemctl list-timers`. The cron line,
+      ~/.config/rclone/server-backups.cron, and cron flock file were removed.
+      The 11:31 manual service run had already succeeded; the first actual
+      timer-triggered run was at 12:00 (see below)."
+  - date: 2026-10-12 12:00
+    event: First timer-triggered run finished exit 0 ("Deactivated
+      successfully" in journalctl). Timers 13:00 and 14:00 also clean.
+
+
+operations:
+  status:
+    - "systemctl list-timers rclone-server-backups-bisync.timer --no-pager"
+    - "systemctl is-enabled rclone-server-backups-bisync.timer"
+    - "journalctl -u rclone-server-backups-bisync --since today --no-pager"
+  manual_run:            # systemd may queue a sequential follow-up run
+    - "sudo systemctl start rclone-server-backups-bisync.service"
+    # Manual starts do not run concurrently with an active oneshot; a request
+    # made mid-run may be queued and run again after completion.
+  inspect_drive_side:
+    - "/usr/bin/rclone lsf --config=/home/wbw/.config/rclone/rclone.conf 'google drive:Server Backups' | tail"
+  tail_log:
+    - "tail -40 /home/wbw/.local/state/rclone/server-backups-bisync.log"
+
+recovery:                # ONLY after a fence ("Must run --resync")
+  preflight:
+    - "Stop the timer and confirm no rclone process is running. Do not recover
+      during the 04:00 backup window; the backup container can still write
+      while the timer is stopped."
+    - "Check that /mnt/smallHDD is the expected ext4 filesystem (findmnt),
+      the source directory is populated, and recent expected backup archives
+      are present. Check the Drive side with rclone lsf and compare names and
+      sizes. If either side looks unexpectedly empty/incomplete, STOP and
+      investigate rather than resync."
+  stop_timer_first:
+    - "sudo systemctl stop rclone-server-backups-bisync.timer"
+  dry_run:
+    # Use all production filters/options plus --resync --dry-run. Dry-run is
+    # preview only; it does not establish trusted listings. Research exact
+    # v1.60.1 semantics before relying on the preview; do not pipe blindly.
+    - "/usr/bin/rclone bisync \"/mnt/smallHDD/google-drive/Server Backups\"
+      \"google drive:Server Backups\" --resync --dry-run --verbose
+      --config=/home/wbw/.config/rclone/rclone.conf
+      --cache-dir=/home/wbw/.cache/rclone --exclude \".backup-lock/\"
+      --log-level INFO"
+    - "Review the output before the real run. Dry-run does not create the
+      bisync lock or change canonical .lst/.lst-err state; it writes preview
+      .lst-dry files only and copies/deletes no source files. Resync dry-run
+      may report Path2 deletes that are not performed in the real resync;
+      check each proposed delete against the expected contents."
+  resync:
+    # No sudo is needed for this rclone command: config/cache are wbw-owned.
+    # This is the exact dry-run command above with only --dry-run --verbose
+    # removed; keep config, cache-dir, exclude, paths, and remaining flags equal.
+    - "/usr/bin/rclone bisync \"/mnt/smallHDD/google-drive/Server Backups\"
+      \"google drive:Server Backups\" --resync
+      --config=/home/wbw/.config/rclone/rclone.conf
+      --cache-dir=/home/wbw/.cache/rclone --exclude \".backup-lock/\"
+      --log-level INFO"
+  restart_timer:
+    - "sudo systemctl start rclone-server-backups-bisync.timer"
+  read_the_output: "--resync makes Path1 authoritative for the initial
+    comparison; inspect dry-run preview first. If it is expected, run the real
+    resync, verify 'Bisync successful', and only then re-enable the timer"
+
+failure_modes:
+  fenced_listings:
+    symptom: "Bisync critical error: cannot find prior Path1 or Path2
+      listings, likely due to critical error on prior run"
+    cause: a prior run died mid-listing-update (permission error, kill)
+    fix: recovery block above (stop timer, --resync, restart timer)
+  stale_internal_lock:
+    symptom: "Failed to bisync: prior lock file found: ...bisync/*.lck"
+    cause: a bisync was killed mid-run; v1.60.1 lock files never expire
+    fix: confirm no rclone process (pgrep -a rclone), then delete the
+      .lck under ~/.cache/rclone/bisync/ and retry. Happened during the
+      2026-10-12 recovery when an interrupted attempt left one behind.
+  filter_changes:
+    rule: "rclone v1.60.1 does not detect changes to command-line --exclude or
+      --include patterns by hashing them. Treat every CLI filter change as
+      requiring --resync: otherwise paths removed from the listing by the new
+      filter may be treated as deletions. Stop the timer and use the guarded
+      dry-run/recovery procedure above. (The filter-file hash behavior described
+      in newer rclone docs is not available for this host's CLI filters.)"
+  no_delete_seatbelt:
+    note: "this pair runs without an explicit --max-delete, so bisync's default
+      abort still applies: if more than 50% of listed files would be deleted on
+      either path, bisync aborts without making changes (--max-delete is a
+      percentage in bisync, not a file count; wbw-media's \"500\" is just its
+      500% threshold). Sub-50% spurious deletions would still propagate as-is;
+      consider lowering the threshold (e.g. --max-delete 5) at the next unit
+      revision if that residual risk matters."
+  silent_scheduling_gaps:
+    lesson: check both the systemd journal state and the log file tail;
+      7 hours of failures happened unnoticed because cron/units kept
+      "running" while bisync aborted inside them

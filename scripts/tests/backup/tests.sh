@@ -12,10 +12,9 @@
 #
 # 2. Coverage tests: for each stack, `docker compose config` is resolved in a
 #    throwaway copy (placeholders instead of secrets, same trick as `make
-#    validate`), and every service's mounts are cross-referenced against the
-#    backup service's BACKUP_PATHS / BACKUP_VOLUMES / EXCLUDED_MOUNTS /
-#    EXTRA_BACKUP_PATHS environment. A container added without backup coverage
-#    fails here, as does a renamed volume or a drifted backup.yml mount.
+#    validate`), and every service's mounts plus required archive files are
+#    cross-referenced against the backup service's declarations. Compose
+#    healthcheck/autoheal invariants are also checked for the media stack.
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -182,25 +181,125 @@ else
 fi
 rm -rf "$negdir"
 
-# Case D: end-to-end exclusion check. Builds a fake state tree, points
-# PATH_ROOT at it, and takes a real --now snapshot with the general stack's
-# excludes; the excluded patterns must not appear in the archive. This guards
-# the zip pattern semantics (a pattern starting "*/" never matches, since
-# zip's * requires at least one character before the literal slash).
+# Media negative controls: required dump coverage and the service health/autoheal
+# contract must fail closed when a declaration drifts.
+mediadir=$(mktemp_d)
+cp -R "$REPO/media" "$mediadir/media"
+TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
+  PIA_USER=ci-placeholder PIA_PASS=ci-placeholder \
+  FRIGATE_RTSP_PASSWORD=ci-placeholder POSTGRES_PASSWORD=ci-placeholder \
+  PLEX_CLAIM=ci-placeholder SONARR_API_KEY=ci-placeholder RADARR_API_KEY=ci-placeholder \
+  SAB_API_KEY=ci-placeholder PLUS_API_KEY=ci-placeholder \
+  IMMICH_VERSION=v3.1.0 IMMICH_DB_PASSWORD=ci-placeholder \
+  PHOTO_UPLOADER_OPERATOR_USERNAME=ci-placeholder PHOTO_UPLOADER_OPERATOR_PASSWORD=ci-placeholder \
+  PHOTO_UPLOADER_SESSION_SECRET=ci-placeholder PHOTO_UPLOADER_BSKY_HANDLE=ci-placeholder \
+  PHOTO_UPLOADER_BSKY_APP_PASSWORD=ci-placeholder PHOTO_UPLOADER_PHOTO_PATH=/tmp \
+  docker compose --project-directory "$mediadir/media" config --format json > "$mediadir/cfg.json" || {
+    bad "media negative controls: compose config failed"
+  }
+python3 - "$mediadir/cfg.json" "$mediadir" <<'PY'
+import copy, json, sys
+cfg = json.load(open(sys.argv[1]))
+root = sys.argv[2]
+cases = {}
+
+case = copy.deepcopy(cfg)
+env = case["services"]["backup"]["environment"]
+env["BACKUP_PATHS"] = " ".join(p for p in env["BACKUP_PATHS"].split() if p != "/bigdisk/db-dumps")
+cases["missing-required-dump-coverage"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["whisparr"]["labels"].pop("autoheal", None)
+cases["whisparr-autoheal-label"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["whisparr"].pop("healthcheck", None)
+cases["whisparr-healthcheck"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["immich-server"].setdefault("labels", {})["autoheal"] = "true"
+cases["immich-server-autoheal-exclusion"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["immich-db-dump"]["healthcheck"]["test"] = ["CMD-SHELL", "true"]
+cases["immich-dump-freshness-check"] = case
+
+for name, case in cases.items():
+    json.dump(case, open(f"{root}/{name}.json", "w"))
+PY
+for case in missing-required-dump-coverage whisparr-autoheal-label whisparr-healthcheck immich-server-autoheal-exclusion immich-dump-freshness-check; do
+  if python3 "$HERE/coverage_check.py" "$mediadir/$case.json" media "$mediadir" >/dev/null 2>&1; then
+    bad "media invariant negative control: $case was not detected"
+  else
+    ok "media invariant negative control: $case detected"
+  fi
+done
+rm -rf "$mediadir"
+
+# Media dump archive smoke test: the declared SQL restore points must survive
+# the real backup script's staging/zip path. Freshness is tested separately by
+# the dump service healthchecks, not by this static fixture.
+dumpfixture=$(mktemp_d)
+mkdir -p "$dumpfixture/backup-roots/bigdisk/db-dumps"
+printf 'postgres fixture dump\\n' > "$dumpfixture/backup-roots/bigdisk/db-dumps/postgres-all.sql"
+printf 'immich fixture dump\\n' > "$dumpfixture/backup-roots/bigdisk/db-dumps/immich-all.sql"
+ROLE=media DEST_DIR="$dumpfixture" PATH_ROOT="$dumpfixture/backup-roots" \
+  BACKUP_PATHS="/bigdisk/db-dumps" BACKUP_VOLUMES= EXCLUDES= \
+  BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
+media_zip=$(ls "$dumpfixture"/media-backup-*.zip 2>/dev/null | head -1)
+if [ -n "$media_zip" ]; then
+  for dump in bigdisk/db-dumps/postgres-all.sql bigdisk/db-dumps/immich-all.sql; do
+    unzip -l "$media_zip" | grep -q "$dump" \
+      && ok "media archive includes $dump" \
+      || bad "media archive missing $dump"
+  done
+else
+  bad "media archive dump fixture: no snapshot was created"
+fi
+rm -rf "$dumpfixture"
+
+# Case D: end-to-end exclusion check. Resolve EXCLUDES from general's actual
+# Compose config, then take a real --now snapshot of fake bind and named-volume
+# state. This guards zip pattern semantics across both archive layouts.
 dirD=$(mktemp_d)
 fake="$dirD/backup-roots/home/wbw/docker"
-mkdir -p "$fake/backups"
+jobfake="$dirD/backup-roots/home/wbw/job-digest-state"
+mkdir -p "$fake/backups" "$fake/diagnostic.data" "$jobfake/production-artifacts/run-1"
 : > "$fake/config.yaml"
 : > "$fake/backups/4a96b252.tar"
 : > "$fake/home-assistant_v2.db.corrupt.2022-01-01"
+: > "$fake/home-assistant_v2.db-wal.corrupt.2022-01-01"
+: > "$fake/home-assistant_v2.db-shm.corrupt.2022-01-01"
 : > "$fake/home-assistant.log.1"
+: > "$fake/diagnostic.data/metrics.20261001T000000Z"
+: > "$jobfake/production-artifacts/run-1/fetched.json"
+# Real durable job-digest state files (see general/job-digest.yml);
+# hn-cache.json is a real file the service rewrites daily.
+: > "$jobfake/hn-cache.json"
+volfake="$dirD/volume-roots/komodo-mongo-data"
+mkdir -p "$volfake/diagnostic.data"
+: > "$volfake/diagnostic.data/metrics.20261001T000000Z"
+# A durable file in the named volume, to assert the volume itself is archived.
+: > "$volfake/WiredTiger.wt"
+negdir=$(mktemp_d)
+cp -R "$REPO/general" "$negdir/general"
+if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
+TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
+COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
+docker compose --project-directory "$negdir/general" config --format json > "$dirD/general-config.json"
+excludes=$(python3 - "$dirD/general-config.json" <<'EOF'
+import json, sys
+print(json.load(open(sys.argv[1]))["services"]["backup"]["environment"]["EXCLUDES"])
+EOF
+)
 ROLE=general DEST_DIR="$dirD" PATH_ROOT="$dirD/backup-roots" \
-  BACKUP_PATHS=/home/wbw/docker BACKUP_VOLUMES= \
-  EXCLUDES="*home-assistant_v2.db-wal *etc-pihole/*-wal *home-assistant_v2.db.corrupt.* *home/wbw/docker/backups/* *home-assistant.log*" \
+  VOLUME_ROOT="$dirD/volume-roots" \
+  BACKUP_PATHS="/home/wbw/docker /home/wbw/job-digest-state" \
+  BACKUP_VOLUMES=komodo-mongo-data EXCLUDES="$excludes" \
   BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
 zipfile=$(ls "$dirD"/general-backup-*.zip 2>/dev/null | head -1)
 if [ -n "$zipfile" ]; then
-  for bad in "backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant.log.1"; do
+  for bad in "backups/4a96b252.tar" "home-assistant_v2.db.corrupt" "home-assistant_v2.db-wal.corrupt" "home-assistant_v2.db-shm.corrupt" "home-assistant.log.1" "diagnostic.data/metrics" "production-artifacts/run-1/fetched.json"; do
     if unzip -l "$zipfile" | grep -q "$bad"; then
       bad "exclusions: $bad should not be in the archive"
     else
@@ -210,6 +309,12 @@ if [ -n "$zipfile" ]; then
   unzip -l "$zipfile" | grep -q "config.yaml" \
     && ok "exclusions: included files still present" \
     || bad "exclusions: config.yaml missing from archive"
+  unzip -l "$zipfile" | grep -q "job-digest-state/hn-cache.json" \
+    && ok "exclusions: durable job-digest state remains included" \
+    || bad "exclusions: durable job-digest state missing from archive"
+  unzip -l "$zipfile" | grep -q "docker-volumes/komodo-mongo-data/WiredTiger.wt" \
+    && ok "exclusions: named-volume durable state remains included" \
+    || bad "exclusions: named-volume durable state missing from archive"
 else
   bad "exclusions: no snapshot was created"
 fi

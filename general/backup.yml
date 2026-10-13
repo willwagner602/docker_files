@@ -41,11 +41,17 @@ services:
       - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo
       # Backup paths that no service mounts (repo copy for restorability).
       - EXTRA_BACKUP_PATHS=/home/wbw/work/job-search-tooling /home/wbw/docker_files
-      # Excluded from inside the backed-up paths: HA's own snapshot folder
-      # (1.6G of nested zip-in-zip), 2022-era corrupt-database leftovers
-      # (~1.1G), rotated HA logs, and Pi-hole's FTL query-history database
-      # (1.5G; gravity.db below it carries the real blocklist state).
-      - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *home-assistant_v2.db.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *etc-pihole/pihole-FTL.db
+      # Exclude transient SQLite sidecars and obsolete/corrupt HA database files.
+      # HA snapshots and rotated logs are disposable; Pi-hole's FTL query DB is
+      # history only (gravity.db retains the blocklist state).
+      # Mongo diagnostic.data contains FTDC support metrics, not database state;
+      # Komodo FTDC collection remains enabled but capped in komodo.yml.
+      # Keep db.before-raw-recovery-* in backups until the current Mongo data has
+      # been restored and verified independently.
+      # Job-digest production-artifacts/ are intermediate per-run outputs; its
+      # durable state and completed digests remain included. Sizes are from the
+      # 2026-10-11 archive and will vary over time.
+      - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *home/wbw/docker/backups/* *home-assistant.log* *etc-pihole/pihole-FTL.db *diagnostic.data/* *job-digest-state/production-artifacts/*
     volumes:
       - ../scripts/backup.sh:/backup.sh:ro
       - "/mnt/smallHDD/google-drive/Server Backups:/backups"
