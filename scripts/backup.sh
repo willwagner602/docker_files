@@ -41,12 +41,11 @@ KEEP_WEEKLY=${KEEP_WEEKLY:-11}
 KEEP_MONTHLY=${KEEP_MONTHLY:-9}
 # Defaults used by stacks that do not set EXCLUDES (currently media). A stack
 # that sets EXCLUDES replaces this entire list; values are not merged.
-# Patterns passed to zip -x. Databases here are hot-copied by design (media's
-# Postgres databases go through pg_dump sidecars instead); these four patterns
-# skip SQLite side files that are meaningless mid-write. NOTE: patterns must
-# NOT start with "*/" — zip's matcher needs * to consume at least one
-# character, so a leading "*/" never matches a relative archive path.
-EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *ipc-socket}
+# Patterns passed to zip -x. The hot-copied SQLite WAL/SHM side files are
+# meaningless mid-write; media's Postgres databases go through pg_dump sidecars.
+# NOTE: patterns must NOT start with "*/" — zip's matcher needs * to consume at
+# least one character, so a leading "*/" never matches a relative archive path.
+EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *ipc-socket}
 # *ipc-socket: runtime IPC sockets (e.g. qBittorrent's config/config/ipc-socket)
 # are not backup state; cp -a preserves them into staging and zip fails to
 # read them ("zip warning: No such device or address").

@@ -145,7 +145,16 @@ check_stack() { # $1 = stack directory name
     return 1
   }
 
-  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work"; then
+  canonical_root=$(python3 - "$work/cfg.json" <<'PY'
+import json
+import os
+import sys
+env = json.load(open(sys.argv[1]))["services"]["backup"]["environment"]
+paths = env.get("EXTRA_BACKUP_PATHS", "")
+print(next((p for p in paths.split() if os.path.basename(p) == "docker_files"), ""))
+PY
+  )
+  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work" "$canonical_root"; then
     ok "$stack: backup coverage covers every deployed service"
   else
     bad "$stack: backup coverage has gaps (see above)"
@@ -178,10 +187,12 @@ env["BACKUP_PATHS"] = " ".join(
 )
 json.dump(cfg, open(sys.argv[1], "w"))
 EOF
-if python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" >/dev/null 2>&1; then
+if checker_output=$(python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" "$canonical_root" 2>&1); then
   bad "negative control: checker did not flag the removed couchdb path"
+elif ! printf '%s\n' "$checker_output" | grep -Fq 'service couchdb mounts /mnt/halfToshibaB/docker/data/couchdb/data which is in neither BACKUP_PATHS nor EXCLUDED_MOUNTS'; then
+  bad "negative control: checker failed for an unexpected reason: $checker_output"
 else
-  ok "negative control: checker flags a removed backup path"
+  ok "negative control: checker reports the uncovered couchdb mount"
 fi
 rm -rf "$negdir"
 
