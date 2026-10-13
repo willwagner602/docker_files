@@ -45,20 +45,22 @@ validate:
 
 check: test validate
 
-# Install the desktop-local sync scripts and units. The mount-point check is a
-# heuristic that this is the desktop host; override explicitly when necessary.
+# This target writes into the user's live bin/config directories. Require a
+# deliberate confirmation every time; the mount guard is an additional check.
 install-gdrive:
 	@set -eu; \
+	if [ "$(GDRIVE_INSTALL_CONFIRM)" != "YES" ]; then \
+	  echo "Refusing install: rerun with GDRIVE_INSTALL_CONFIRM=YES" >&2; exit 1; \
+	fi; \
 	if [ "$(GDRIVE_INSTALL)" != "1" ] && [ ! -d /run/media/wbw/Slowby ]; then \
-	  echo "not the desktop host — skipped (set GDRIVE_INSTALL=1 to force)"; \
-	else \
-	  install -d ~/.local/bin ~/.config/systemd/user ~/.config/rclone; \
-	  install -m 755 scripts/gdrive-sync.sh scripts/gdrive-sync-photos.sh scripts/gdrive-sync-alert.sh ~/.local/bin/; \
-	  install -Dm 644 systemd/user/gdrive-sync.service systemd/user/gdrive-sync.timer ~/.config/systemd/user/; \
-	  install -Dm 644 systemd/user/gdrive-sync-photos.service systemd/user/gdrive-sync-photos.timer ~/.config/systemd/user/; \
-	  install -Dm 644 systemd/user/gdrive-sync-alert.service ~/.config/systemd/user/; \
-	  install -Dm 644 systemd/user/gdrive-sync-filters.txt ~/.config/rclone/gdrive-sync-filters.txt; \
-	fi
+	  echo "not the desktop host — skipped (set GDRIVE_INSTALL=1 to override mount check)"; exit 0; \
+	fi; \
+	install -d ~/.local/bin ~/.config/systemd/user ~/.config/rclone; \
+	install -m 755 scripts/gdrive-sync.sh scripts/gdrive-sync-photos.sh scripts/gdrive-sync-alert.sh ~/.local/bin/; \
+	install -Dm 644 systemd/user/gdrive-sync.service systemd/user/gdrive-sync.timer ~/.config/systemd/user/; \
+	install -Dm 644 systemd/user/gdrive-sync-photos.service systemd/user/gdrive-sync-photos.timer ~/.config/systemd/user/; \
+	install -Dm 644 systemd/user/gdrive-sync-alert.service ~/.config/systemd/user/; \
+	install -Dm 644 systemd/user/gdrive-sync-filters.txt ~/.config/rclone/gdrive-sync-filters.txt
 
 # Report drift only; intentionally not part of make check / the pre-push gate.
 check-gdrive:

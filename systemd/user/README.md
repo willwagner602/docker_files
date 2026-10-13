@@ -70,13 +70,19 @@ both current.
 
 ## Install
 
-`make install-gdrive` runs the install commands below only when
-`/run/media/wbw/Slowby` exists, a host-appropriateness check for this desktop.
-Install the required `~/.local/bin/rclone` v1.75.1 separately before enabling
-these units.
-Set `GDRIVE_INSTALL=1` to override the guard explicitly. `make check-gdrive`
-compares the installed scripts, units, and filters with the repository; it is
-standalone and is not part of `make check` or the pre-push gate.
+`make install-gdrive` writes to live user configuration and therefore refuses
+to run unless you explicitly confirm it:
+
+```sh
+make GDRIVE_INSTALL_CONFIRM=YES install-gdrive
+```
+
+It also requires `/run/media/wbw/Slowby` to exist as a host-appropriateness
+check for this desktop. `GDRIVE_INSTALL=1` overrides only that mount check, not
+the required confirmation. Install the required `~/.local/bin/rclone` v1.75.1
+separately before enabling these units. `make check-gdrive` compares the
+installed scripts, units, and filters with the repository; it is standalone and
+is not part of `make check` or the pre-push gate.
 
 ```sh
 cd ~/work/docker_files

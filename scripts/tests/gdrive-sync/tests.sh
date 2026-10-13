@@ -41,6 +41,7 @@ contains "$REPO/systemd/user/README.md" 'last resort' && contains "$REPO/systemd
 contains "$REPO/systemd/user/README.md" 'shared flock is the' && ok 'overlap guard scope is documented' || bad 'overlap guard scope missing'
 
 contains "$REPO/Makefile" 'install-gdrive:' && contains "$REPO/Makefile" 'check-gdrive:' && ok 'Makefile exposes install and drift targets' || bad 'Makefile targets missing'
+contains "$REPO/Makefile" 'GDRIVE_INSTALL_CONFIRM)" != "YES' && ok 'installer requires explicit confirmation' || bad 'installer lacks explicit confirmation'
 if grep -A2 '^check:' "$REPO/Makefile" | grep -q 'check-gdrive'; then bad 'drift check is coupled to make check'; else ok 'drift check remains opt-in'; fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
