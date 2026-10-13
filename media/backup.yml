@@ -31,6 +31,9 @@ services:
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
       - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /media/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps /home/wbw/docker_files
+      # SQL exports are the database restore points; coverage_check verifies
+      # that their containing directory remains declared for backup.
+      - REQUIRED_BACKUP_FILES=/bigdisk/db-dumps/postgres-all.sql /bigdisk/db-dumps/immich-all.sql
       # No named volumes are in use by any media service, except Komodo's.
       # The Komodo agent keys live in the named komodo-keys volume.
       - BACKUP_VOLUMES=komodo-keys

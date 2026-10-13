@@ -1,4 +1,4 @@
-# Standalone, local-only Wine client setup. Not included by media/compose.yaml.
+# Backblaze Personal Wine client, included by media/compose.yaml.
 # Direct read-only live source roots with separate OS-disk Backblaze markers.
 # Fixture scan/upload passed for this exact Btrfs-root/.bzvol topology.
 services:
