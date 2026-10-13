@@ -96,22 +96,19 @@ scheduler:
     - sudo install -m 0644 systemd/rclone-server-backups-bisync.service systemd/rclone-server-backups-bisync.timer /etc/systemd/system/
     - sudo systemctl daemon-reload
     - sudo systemctl enable --now rclone-server-backups-bisync.timer
-  install_status: DRIFT-WATCH
-    # The copy installed on 2026-10-12 predates the --exclude ".backup-lock/"
-    # and --log-file revision in the repo. Until reinstalled, hourly runs use
-    # the old ExecStart (stdout append; no exclude). The migration applied the
-    # filter without --resync after checking that the directory was absent and
-    # the canonical listings did not mention it; that was an observed-state
-    # exception, not a general rule. Before applying a filter without resync,
-    # re-check directory absence and run:
-    # `grep -l 'backup-lock' /home/wbw/.cache/rclone/bisync/*.lst`
-    # (no matches in canonical listings). Otherwise stop the timer and follow
-    # the guarded recovery procedure.
+  install_status: OK
+    # RESOLVED 2026-10-13 11:49: the repo units were reinstalled to
+    # /etc/systemd/system (sudo install + daemon-reload); `systemctl cat`
+    # confirms the live ExecStart carries the --exclude ".backup-lock/" and
+    # --log-file flags. The verification run ended "No changes found /
+    # Bisync successful" and the hourly timer is active (next fire on an
+    # hour boundary). Listing state was rebuilt by a guarded --resync the
+    # same morning after the operator granted wbw the docker-manager group
+    # on the synced folder (see history entry 2026-10-13).
   #
-  # COMPOSED DRIFT-WATCH RESOLUTION CHECKLIST — run every step in order; the
-  # rules it chains come from failure_modes.filter_changes (CLI filter change
-  # => treated as requiring --resync), the recovery block (guarded procedure),
-  # and no_delete_seatbelt (threshold decision):
+  # DRIFT-WATCH RESOLUTION PROCEDURE (for any future drift): every step in
+  # order; the chain comes from failure_modes.filter_changes (CLI filter
+  # change => treated as requiring --resync), the recovery block, and
   #   1. Stop the timer: `sudo systemctl stop rclone-server-backups-bisync.timer`
   #      and confirm no rclone process is running (pgrep -a rclone).
   #   2. Preflight: the guarded recovery preflight checks above (findmnt,
@@ -143,14 +140,15 @@ backup_integration:
     "/mnt/smallHDD/google-drive/Server Backups:/backups" and writes
     general-backup-<UTC>.zip there
   lock:
-    path: inside the synced folder (".backup-lock", root-owned)
-      # KNOWN HAZARD: on wbw-media the same lock design ("Server Backups
-      # lock contended inside the synced folder") starved both stacks and
-      # was moved out to /bigdisk/backup-locks. Here it stayed inside the
-      # mirror; on 2026-10-12 04:01 it collided with bisync (see history).
-      # The repo's --exclude is the intended mitigation, but it is NOT active
-      # in the installed unit until DRIFT-WATCH is resolved. Relocating the
-      # lock out of the synced tree would be cleaner (not done yet).
+    path: outside the synced folder (BACKUP_LOCK_DIR=/locks backed by
+      /mnt/smallHDD/backup-locks, applied 2026-10-13 via the storage-migration
+      merge into general/backup.yml)
+      # HISTORY: the lock originally defaulted inside the synced folder
+      # (".backup-lock", root-owned). On wbw-media the same design starved
+      # both stacks and was moved to /bigdisk/backup-locks; here it collided
+      # with bisync on 2026-10-12 04:01 (see history). Two independent fixes
+      # are now in place: the lock no longer lives inside the mirror, and
+      # the bisync unit excludes ".backup-lock/" as a second layer.
   latency: normally reaches Drive on the next successful hourly bisync, then
     appears on wbw-media's mirror via that host's bisync; a fenced or failed
     run can delay off-site copies by hours, as the incident history shows
@@ -168,6 +166,16 @@ cross_host:
     hosts) and Drive."
 
 history:
+  - date: 2026-10-13 11:03-11:49
+    event: "Full recovery + DRIFT-WATCH resolved. Morning resync first failed on
+      a filesystem permission (the synced folder is docker-manager-owned; wbw
+      lacked that group) — operator added wbw to docker-manager + setgid on
+      the folder, resync then completed clean ('Bisync successful', both sides
+      identical, listing state rebuilt). The operator then reinstalled the
+      repo units to /etc/systemd/system, verified the new ExecStart flags, ran
+      one clean verification run, and re-enabled the timer. Backlog zips
+      (general 20261012T222901Z from the migration, interrupted morning zip on
+      Drive removed as incomplete) all reconciled."
   - date: 2026-10-12 04:01
     event: FENCE INCIDENT. The 04:00 backup run left the root-owned
       ".backup-lock/pid" inside the synced folder; bisync hit "permission
