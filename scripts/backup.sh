@@ -41,10 +41,13 @@ KEEP_WEEKLY=${KEEP_WEEKLY:-11}
 KEEP_MONTHLY=${KEEP_MONTHLY:-9}
 # Defaults used by stacks that do not set EXCLUDES (currently media). A stack
 # that sets EXCLUDES replaces this entire list; values are not merged.
-# Patterns passed to zip -x. The hot-copied SQLite WAL/SHM side files are
-# meaningless mid-write; media's Postgres databases go through pg_dump sidecars.
-# NOTE: patterns must NOT start with "*/" — zip's matcher needs * to consume at
-# least one character, so a leading "*/" never matches a relative archive path.
+# Patterns passed to zip -x. SQLite main databases are re-copied through
+# sqlite3 .backup during staging (sqlite_restage below), which folds any WAL
+# frames in, so the WAL/SHM side files are redundant in the archive and
+# excluded everywhere; media's Postgres databases go through pg_dump exports
+# instead. NOTE: patterns must NOT start with "*/" — zip's matcher needs * to
+# consume at least one character, so a leading "*/" never matches a relative
+# archive path.
 EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *ipc-socket}
 # *ipc-socket: runtime IPC sockets (e.g. qBittorrent's config/config/ipc-socket)
 # are not backup state; cp -a preserves them into staging and zip fails to
@@ -61,6 +64,45 @@ usage() {
 # ---------------------------------------------------------------------------
 # Backup
 # ---------------------------------------------------------------------------
+
+# Re-copy every SQLite database found in a staged tree through sqlite3's
+# .backup command, replacing the cp -a output with a consistent snapshot read
+# from the live source. A plain cp of a hot SQLite database can tear across a
+# concurrent write and misses committed WAL frames until the next checkpoint;
+# .backup takes a proper snapshot through SQLite's own library while the app
+# keeps running. Sources stay read-only. Failures are loud: an inconsistent
+# database in the archive is worse than a missing archive, so any SQLite
+# database that cannot be snapshotted fails the whole backup run.
+sqlite_restage() (
+  src_root=$1
+  staged_root=$2
+  list=$(mktemp "${TMPDIR:-/tmp}/sqlite-restage.XXXXXX")
+  trap 'rm -f "$list"' EXIT
+  find "$staged_root" -type f > "$list"
+  status=0
+  while IFS= read -r staged; do
+    # Only main database files carry the 16-byte magic string; WAL/SHM side
+    # files do not, so they are left as staged and stay excluded via EXCLUDES.
+    [ "$(head -c 15 "$staged" 2>/dev/null)" = "SQLite format 3" ] || continue
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+      echo "ERROR: $staged is a SQLite database but sqlite3 is not installed; refusing to archive an inconsistent hot copy" >&2
+      return 1
+    fi
+    rel=${staged#"$staged_root"}
+    live="$src_root$rel"
+    rm -f "$staged"
+    # .timeout rides out brief writer locks; mode=ro keeps the read-only mount
+    # contract (an open that wants to recover a crashed writer's WAL fails
+    # here, loudly, rather than mutating live state).
+    if ! sqlite3 -cmd ".timeout 10000" "file:$live?mode=ro" ".backup '$staged'"; then
+      echo "ERROR: sqlite3 .backup failed for $live; not archiving a possibly inconsistent copy" >&2
+      status=1
+      continue
+    fi
+    log "sqlite .backup: ${rel#/}"
+  done < "$list"
+  return "$status"
+)
 
 # Take one snapshot. Runs in a subshell so the cleanup trap never touches the
 # scheduler loop. The lock directory prevents a manual --now run from racing
@@ -111,6 +153,7 @@ run_backup() (
     fi
     mkdir -p "$work$(dirname "$path")"
     cp -a "$src" "$work$path"
+    sqlite_restage "$src" "$work$path" || return 1
     log "copied $path ($(du -sh "$src" 2>/dev/null | cut -f1))"
   done
 
@@ -122,6 +165,7 @@ run_backup() (
     fi
     mkdir -p "$work/docker-volumes/$volume"
     cp -a "$src/." "$work/docker-volumes/$volume/"
+    sqlite_restage "$src" "$work/docker-volumes/$volume" || return 1
     log "copied volume $volume ($(du -sh "$src" 2>/dev/null | cut -f1))"
   done
 

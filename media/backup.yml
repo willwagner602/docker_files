@@ -19,8 +19,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # tzdata for BACKUP_AT in local time; zip for the archive itself.
-    command: sh -c "apk add --no-cache tzdata zip >/dev/null && exec sh /backup.sh"
+    # tzdata for BACKUP_AT in local time; zip for the archive itself; sqlite
+    # for consistent sqlite3 .backup copies of hot SQLite databases.
+    command: sh -c "apk add --no-cache sqlite tzdata zip >/dev/null && exec sh /backup.sh"
     environment:
       - TZ=America/Los_Angeles
       - ROLE=media
