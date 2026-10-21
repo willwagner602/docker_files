@@ -27,12 +27,17 @@ for pair in 'scripts/gdrive-sync.sh:last-sync.ok' 'scripts/gdrive-sync-photos.sh
   contains "$REPO/$script" '--max-lock 2m --resilient --recover' && ok "$script has recovery flags" || bad "$script lacks recovery flags"
   contains "$REPO/$script" 'gdrive-sync-alert.sh' && ok "$script documents marker consumer" || bad "$script omits marker consumer"
 done
+contains "$REPO/scripts/gdrive-sync.sh" '--fast-list' && ok 'whole-tree uses --fast-list' || bad 'whole-tree lacks --fast-list'
+contains "$REPO/scripts/gdrive-sync.sh" '--checkers=16' && ok 'whole-tree uses --checkers=16' || bad 'whole-tree lacks --checkers=16'
+if grep -Fq -- '--fast-list' "$REPO/scripts/gdrive-sync-photos.sh"; then bad 'Photos script should not use --fast-list'; else ok 'Photos script omits --fast-list'; fi
+contains "$REPO/systemd/user/gdrive-sync.timer" 'OnCalendar=*-*-* *:0/10:00' && ok 'whole-tree timer cadence pinned' || bad 'whole-tree timer cadence drifted'
+contains "$REPO/systemd/user/gdrive-sync-photos.timer" 'OnCalendar=*:*:00' && ok 'photos timer cadence pinned' || bad 'photos timer cadence drifted'
 contains "$REPO/scripts/gdrive-sync-photos.sh" 'skipping photos sync.' && ok 'Photos unmounted skip is logged' || bad 'Photos unmounted skip is not logged'
 contains "$REPO/scripts/gdrive-sync-alert.sh" 'trust-first fallback' && ok 'alert documents trust-first behavior' || bad 'alert trust-first documentation missing'
 contains "$REPO/scripts/gdrive-sync-alert.sh" 'torn write' && ok 'alert documents torn-write limitation' || bad 'alert torn-write documentation missing'
 contains "$REPO/desktop/.env.example" 'make validate' && contains "$REPO/desktop/.env.example" '${VAR:?}' && ok 'env placeholder contract is documented' || bad 'env placeholder contract missing'
 contains "$REPO/README.md" 'HA_TOKEN' && ok 'README optional env list includes HA_TOKEN' || bad 'README optional env list omits HA_TOKEN'
-contains "$REPO/README.md" 'every 60 s' && contains "$REPO/README.md" 'at least 6 h' && ok 'README describes alarm cadence and threshold' || bad 'README alarm semantics incomplete'
+contains "$REPO/README.md" 'every 60 s' && contains "$REPO/README.md" '≥6 h' && ok 'README describes alarm cadence and threshold' || bad 'README alarm semantics incomplete'
 if grep -q 'Electric-header' "$REPO/systemd/user/README.md"; then bad 'garbled README bullet remains'; else ok 'garbled README bullet removed'; fi
 contains "$REPO/systemd/user/README.md" 'Argument pass-through' && contains "$REPO/systemd/user/README.md" 'Success marker' && ok 'README separates argument and marker details' || bad 'README detail bullets missing'
 contains "$REPO/desktop/mcp-servers/compose.yaml" 'templates' && ok 'MCP fragment template caveat exists' || bad 'MCP fragment caveat missing'

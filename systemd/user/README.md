@@ -158,3 +158,7 @@ cat ~/.local/state/gdrive-sync/last-sync.ok ~/.local/state/gdrive-sync/last-sync
   intended to handle interruptions without it in the common case. Photos healthy.
 - 2026-10-12: scripts and units copied into this repo (`scripts/` +
   `systemd/user/`) with `systemd/user/README.md` as the setup doc.
+- Cadence tuning since the 2025-09-25 "whole@hourly" entry above: hourly →
+  every two hours (2026-10-20) → every 15 minutes → every 10 minutes
+  (2026-10-21). The authoritative schedule is
+  `gdrive-sync.timer`'s `OnCalendar`; also see `desktop/rclone-config.md`.

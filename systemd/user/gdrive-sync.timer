@@ -4,7 +4,7 @@ Description=Run gdrive-sync every 10 minutes (no-ops if drive isn't mounted)
 [Timer]
 OnCalendar=*-*-* *:0/10:00
 RandomizedDelaySec=0
-Persistent=true
+Persistent=false
 
 [Install]
 WantedBy=timers.target

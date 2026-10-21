@@ -2,12 +2,13 @@
 
 This document describes the rclone setup on `wbw-desktop`. The desktop uses two-way bisync jobs between an external NTFS drive and Google Drive, plus a user-level staleness watcher. The separate `media` machine has its own Google Drive bisync; its unit and paths are not used on this desktop.
 
-The repository version of the scripts and systemd user units lives under `scripts/` and `systemd/user/`. The installed copies in `~/.local/bin/` and `~/.config/systemd/user/` are machine-local. Keep them aligned with `make check-gdrive`.
+The repository version of the scripts and systemd user units lives under `scripts/` and `systemd/user/`. The installed copies in `~/.local/bin/` and `~/.config/systemd/user/` are machine-local. `make check-gdrive` detects drift for the scripts, unit files, and filters file only; it is opt-in (not part of `make check` or the pre-push gate), and it says nothing about the behavioral facts this document asserts — update the document by hand when installed behavior changes.
+
+Values marked "at inspection" were true on their stated date and may drift; everything else in this document is standing configuration. File counts, check totals, listed-entry totals, and sizes are self-documenting at read time — re-measure them with the log and mount commands below rather than trusting a recorded snapshot.
 
 ## Machine and credentials
 
 - Host: `wbw-desktop`.
-- OS: Ubuntu 26.04.1 LTS (observed 2026-10-20).
 - rclone executable: `~/.local/bin/rclone`, version 1.75.1. The scripts deliberately use this path rather than `/usr/bin/rclone`.
 - Configuration: `~/.config/rclone/rclone.conf`; it contains the OAuth credentials and must be treated as secret. The configured remote name is `google drive:` (the only remote returned by `rclone listremotes` at inspection time). Never copy the config contents into documentation, logs, tickets, or the repository.
 - The config file is owner-only (`0700` at inspection time). Preserve restrictive permissions and do not commit it.
@@ -17,14 +18,16 @@ The repository version of the scripts and systemd user units lives under `script
 
 ## Storage and synced paths
 
-The external volume is mounted at `/run/media/wbw/Slowby` and is currently `/dev/sdc2`, reported as `fuseblk` (NTFS). At inspection time it had about 7.3 TiB total, 3.6 TiB used, and 3.8 TiB available. These device and capacity values can change; use `findmnt` and `df` for current values.
+The external volume is mounted at `/run/media/wbw/Slowby` (NTFS via a FUSE driver; device and capacity change over time — check with `findmnt` and `df`).
 
 | Job | Local path | Google Drive path | Purpose |
 |---|---|---|---|
-| Whole-tree | `/run/media/wbw/Slowby/Google Drive` | `google drive:` | Two-way bisync of the Drive root and local mirror. |
-| Photos | `/run/media/wbw/Slowby/Google Drive/Photos` | `google drive:Photos` | Separate two-way bisync for the Photos subtree, with separate bisync state. |
+| Whole-tree | `/run/media/wbw/Slowby/Google Drive` | `google drive:` | Two-way bisync of the Drive root and local mirror; runs first. |
+| Photos | `/run/media/wbw/Slowby/Google Drive/Photos` | `google drive:Photos` | Sub-job of the whole-tree pair: a dedicated, faster Photos-only bisync. |
 
 The local Photos directory is a subtree of the whole-tree local directory, and the remote Photos path is also a subtree of the whole-tree remote. Both scripts use the same `flock` path, which is the only overlap guard. Always start syncs through these scripts or their systemd units; do not run a raw bisync for either pair concurrently.
+
+**Photos is a sub-job of the whole-tree sync.** Because Photos shares the same flock and its own copy is a strict subset of what the whole-tree pass covers, missing Photos ticks while whole-tree holds the lock are deliberate and harmless — the next whole-tree run also refreshes the Photos pair content. The watcher alarms on whole-tree staleness ("Google Drive"), which covers Photos; the separate Photos marker exists only so the watcher can name the pair specifically if whole-tree is fresh but the Photos pair itself stalls. A successful systemd Photos "Finished" line alone does not prove a Photos bisync ran — a lock-busy tick exits silently by design; check the marker and log if you need to know.
 
 ## Data flow and schedules
 
@@ -39,16 +42,16 @@ success markers  →  gdrive-sync-alert.service
     checks once per minute; alarms only 10:00–20:00 local time
 ```
 
-The whole-tree timer is defined in `systemd/user/gdrive-sync.timer` with `OnCalendar=*-*-* *:0/10:00`, no random delay, and `Persistent=true`. It was changed from hourly to every two hours, then to every 15 minutes, and then every 10 minutes on 2026-10-21. The Photos timer remains `OnCalendar=*:*:00`, with one-second accuracy and `Persistent=false`. The watcher is a resident user service that restarts on failure.
+The whole-tree timer is defined in `systemd/user/gdrive-sync.timer`, whose `OnCalendar` value is the single source of truth for the current cadence — the prose here, the script header comment, and the README's schedule table are summaries, not the authority. The whole-tree timer currently has `OnCalendar=*-*-* *:0/10:00` (every 10 minutes), no random delay, and `Persistent=false` (set explicitly on 2026-10-21; a missed tick on resume is not worth a catch-up burst, and the next 10-minute tick catches up naturally). The Photos timer remains `OnCalendar=*:*:00`, with one-second accuracy. It has never used `Persistent=true`, since per-minute ticks are meant to be skipped freely when they lose the lock. The watcher is a resident user service that restarts on failure. (Cadence history: hourly until 2026-10-20, then every two hours, then every 15 minutes, then every 10 minutes on 2026-10-21.)
 
-At inspection on 2026-10-20, the whole-tree unit was running, and the last successful marker was from 11:12:52 PDT. The latest progress then showed 235,266 checks and 324,646 listed entries at about 37 minutes elapsed, with zero bytes transferred. The Photos success marker and log were still dated 2026-10-13 16:00:22 PDT; recent systemd Photos starts can finish after the non-blocking shared lock rejects the run. Do not interpret a successful systemd oneshot exit by itself as proof that Photos bisync ran; check the marker and log.
+Whole-tree runtimes have not been re-measured since `--fast-list` was enabled; re-measure with the log's `Elapsed time:` lines rather than relying on a recorded figure here.
 
 ## Unit definitions
 
 Repository unit files:
 
 - `systemd/user/gdrive-sync.service` — whole-tree oneshot invoking `%h/.local/bin/gdrive-sync.sh`.
-- `systemd/user/gdrive-sync.timer` — whole-tree schedule, currently every 10 minutes.
+- `systemd/user/gdrive-sync.timer` — whole-tree schedule (`OnCalendar` is the source of truth).
 - `systemd/user/gdrive-sync-photos.service` — Photos oneshot invoking `%h/.local/bin/gdrive-sync-photos.sh`.
 - `systemd/user/gdrive-sync-photos.timer` — Photos schedule, every minute.
 - `systemd/user/gdrive-sync-alert.service` — always-running staleness watcher, `Restart=on-failure`.
@@ -150,7 +153,7 @@ systemctl --user enable --now gdrive-sync.timer gdrive-sync-photos.timer gdrive-
 make check-gdrive
 ```
 
-To update only the two-hour whole-tree timer after changing its repository file:
+To update only the whole-tree timer after changing its repository file:
 
 ```sh
 install -Dm 644 systemd/user/gdrive-sync.timer ~/.config/systemd/user/gdrive-sync.timer
