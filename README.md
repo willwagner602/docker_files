@@ -314,7 +314,7 @@ Manual run (e.g. for a stop-first consistent copy of the general databases):
 ```sh
 cd general
 docker compose stop couchdb unifi-db
-docker compose run --rm backup sh -c 'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+docker compose run --rm -e BACKUP_NOW=1 backup
 docker compose start couchdb unifi-db
 ```
 
@@ -392,8 +392,7 @@ Scripts live in
 
 ```sh
 cd general && docker compose stop couchdb
-# see "Backups" above: docker compose run --rm backup sh -c \
-#   'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+# See "Backups" above for the one-off `docker compose run --rm -e BACKUP_NOW=1 backup` command.
 docker compose start couchdb
 ```
 

@@ -20,7 +20,7 @@
 #
 # Manual run, e.g. for a stop-first consistent copy of the databases:
 #   docker compose stop couchdb unifi-db
-#   docker compose run --rm backup sh -c 'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+#   docker compose run --rm -e BACKUP_NOW=1 backup
 #   docker compose start couchdb unifi-db
 #
 # Output: $DEST_DIR/$ROLE-backup-YYYYMMDDTHHMMSSZ.zip, mirroring the host
@@ -58,7 +58,8 @@ warn() { log "WARNING: $*" >&2; }
 
 usage() {
   echo "Usage: sh /backup.sh [--now]"
-  echo "  --now  take one snapshot immediately, then exit (no retention changes beyond the usual prune)"
+  echo "  --now       take one snapshot immediately, then exit (no retention changes beyond the usual prune)"
+  echo "  BACKUP_NOW=1 has the same effect when set in the environment (for Compose one-off runs)"
 }
 
 # ---------------------------------------------------------------------------
@@ -269,6 +270,11 @@ seconds_until_next_run() {
 }
 
 main() {
+  if [ "${BACKUP_NOW:-0}" = 1 ]; then
+    run_backup
+    prune_backups
+    return 0
+  fi
   case ${1:-} in
     --now) run_backup; prune_backups; return 0 ;;
     -h | --help) usage; return 0 ;;
