@@ -81,8 +81,10 @@ It also requires `/run/media/wbw/Slowby` to exist as a host-appropriateness
 check for this desktop. `GDRIVE_INSTALL=1` overrides only that mount check, not
 the required confirmation. Install the required `~/.local/bin/rclone` v1.75.1
 separately before enabling these units. `make check-gdrive` compares the
-installed scripts, units, and filters with the repository; it is standalone and
-is not part of `make check` or the pre-push gate.
+installed scripts, units, and filters with the repository. On hosts that
+have installed copies it runs as part of `make check` (and therefore the
+pre-push hook); on CI hosts, which have none, it is skipped. It can also
+be run standalone at any time.
 
 ```sh
 cd ~/work/docker_files

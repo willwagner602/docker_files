@@ -45,6 +45,7 @@ validate:
 	printf '\nAll compose stacks validated.\n'
 
 check: test validate
+	@if [ -f "$$HOME/.local/bin/gdrive-sync.sh" ]; then make check-gdrive; fi
 
 # This target writes into the user's live bin/config directories. Require a
 # deliberate confirmation every time; the mount guard is an additional check.
@@ -63,7 +64,9 @@ install-gdrive:
 	install -Dm 644 systemd/user/gdrive-sync-alert.service ~/.config/systemd/user/; \
 	install -Dm 644 systemd/user/gdrive-sync-filters.txt ~/.config/rclone/gdrive-sync-filters.txt
 
-# Report drift only; intentionally not part of make check / the pre-push gate.
+# Report drift. Part of make check on hosts that have installed copies
+# (guarded by an existence check so CI, which has none, still passes);
+# always runnable standalone.
 check-gdrive:
 	@set -eu; failed=0; \
 	for f in gdrive-sync.sh gdrive-sync-photos.sh gdrive-sync-alert.sh; do \

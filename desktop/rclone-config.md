@@ -2,7 +2,7 @@
 
 This document describes the rclone setup on `wbw-desktop`. The desktop uses two-way bisync jobs between an external NTFS drive and Google Drive, plus a user-level staleness watcher. The separate `media` machine has its own Google Drive bisync; its unit and paths are not used on this desktop.
 
-The repository version of the scripts and systemd user units lives under `scripts/` and `systemd/user/`. The installed copies in `~/.local/bin/` and `~/.config/systemd/user/` are machine-local. `make check-gdrive` detects drift for the scripts, unit files, and filters file only; it is opt-in (not part of `make check` or the pre-push gate), and it says nothing about the behavioral facts this document asserts — update the document by hand when installed behavior changes.
+The repository version of the scripts and systemd user units lives under `scripts/` and `systemd/user/`. The installed copies in `~/.local/bin/` and `~/.config/systemd/user/` are machine-local. `make check-gdrive` detects drift for the scripts, unit files, and filters file only; it runs as part of `make check` on hosts that have installed copies (skipped on CI hosts, which have none), and it says nothing about the behavioral facts this document asserts — update the document by hand when installed behavior changes.
 
 Values marked "at inspection" were true on their stated date and may drift; everything else in this document is standing configuration. File counts, check totals, listed-entry totals, and sizes are self-documenting at read time — re-measure them with the log and mount commands below rather than trusting a recorded snapshot.
 
