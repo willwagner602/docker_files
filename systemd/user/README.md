@@ -15,7 +15,7 @@ both current.
 
 | Job | Paths | Schedule | Log |
 |---|---|---|---|
-| `gdrive-sync` (whole tree) | `/run/media/wbw/Slowby/Google Drive` ↔ `google drive:` | hourly at :00 | `~/.local/state/gdrive-sync/sync.log` |
+| `gdrive-sync` (whole tree) | `/run/media/wbw/Slowby/Google Drive` ↔ `google drive:` | every 10 min | `~/.local/state/gdrive-sync/sync.log` |
 | `gdrive-sync-photos` (Photos only) | `.../Google Drive/Photos` ↔ `google drive:Photos` | every minute | `~/.local/state/gdrive-sync/photos-sync.log` |
 | `gdrive-sync-alert` (watcher) | staleness check (both jobs) | always on | `journalctl --user -u gdrive-sync-alert` |
 

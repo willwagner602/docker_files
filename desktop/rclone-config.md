@@ -30,7 +30,7 @@ The local Photos directory is a subtree of the whole-tree local directory, and t
 
 ```text
 /run/media/wbw/Slowby/Google Drive  ⇄  google drive:
-    whole-tree, systemd user timer every two hours (current setting)
+    whole-tree, systemd user timer every 10 minutes (current setting)
 
 /run/media/wbw/Slowby/Google Drive/Photos  ⇄  google drive:Photos
     Photos-only pair, systemd user timer every minute
@@ -39,7 +39,7 @@ success markers  →  gdrive-sync-alert.service
     checks once per minute; alarms only 10:00–20:00 local time
 ```
 
-The whole-tree timer is defined in `systemd/user/gdrive-sync.timer` with `OnCalendar=*-*-* 00/2:00:00`, no random delay, and `Persistent=true`. It was changed from hourly to every two hours on 2026-10-20. The Photos timer remains `OnCalendar=*:*:00`, with one-second accuracy and `Persistent=false`. The watcher is a resident user service that restarts on failure.
+The whole-tree timer is defined in `systemd/user/gdrive-sync.timer` with `OnCalendar=*-*-* *:0/10:00`, no random delay, and `Persistent=true`. It was changed from hourly to every two hours, then to every 15 minutes, and then every 10 minutes on 2026-10-21. The Photos timer remains `OnCalendar=*:*:00`, with one-second accuracy and `Persistent=false`. The watcher is a resident user service that restarts on failure.
 
 At inspection on 2026-10-20, the whole-tree unit was running, and the last successful marker was from 11:12:52 PDT. The latest progress then showed 235,266 checks and 324,646 listed entries at about 37 minutes elapsed, with zero bytes transferred. The Photos success marker and log were still dated 2026-10-13 16:00:22 PDT; recent systemd Photos starts can finish after the non-blocking shared lock rejects the run. Do not interpret a successful systemd oneshot exit by itself as proof that Photos bisync ran; check the marker and log.
 
@@ -48,7 +48,7 @@ At inspection on 2026-10-20, the whole-tree unit was running, and the last succe
 Repository unit files:
 
 - `systemd/user/gdrive-sync.service` — whole-tree oneshot invoking `%h/.local/bin/gdrive-sync.sh`.
-- `systemd/user/gdrive-sync.timer` — whole-tree schedule, currently every two hours.
+- `systemd/user/gdrive-sync.timer` — whole-tree schedule, currently every 10 minutes.
 - `systemd/user/gdrive-sync-photos.service` — Photos oneshot invoking `%h/.local/bin/gdrive-sync-photos.sh`.
 - `systemd/user/gdrive-sync-photos.timer` — Photos schedule, every minute.
 - `systemd/user/gdrive-sync-alert.service` — always-running staleness watcher, `Restart=on-failure`.
@@ -59,12 +59,7 @@ The sync units run as systemd user services. The timers are enabled; the service
 
 The whole-tree command is assembled in `scripts/gdrive-sync.sh`; the Photos command is assembled in `scripts/gdrive-sync-photos.sh`. Both use `--drive-import-formats docx,xlsx,pptx`, the shared filters file, INFO logging, `--max-lock 2m`, `--resilient`, and `--recover`.
 
-The whole-tree job additionally uses:
-
-- `--fast-list` to use recursive listing where supported, trading more memory for fewer listing transactions.
-- `--checkers=16` for parallel checking.
-
-Those two scan-speed options were added to the desktop whole-tree script on 2026-10-20, based on the corresponding media-host command. The Photos script does not currently use them. A running rclone process does not inherit edits to its script; the flags apply to future invocations. Measure a completed run before concluding that they shortened scan time.
+The whole-tree job additionally uses `--fast-list` and `--checkers=16`. `--fast-list` uses recursive listing where supported, trading more memory for fewer listing transactions; `--checkers=16` runs more checks in parallel. These scan-speed options were added to the desktop whole-tree script on 2026-10-20, based on the corresponding media-host command. The Photos script does not currently use them. Subsequent whole-tree runs completed in roughly 3½–5¼ minutes, down from about 1h32m before the options were added; this is an observed before/after, not a controlled benchmark. A running rclone process does not inherit edits to its script, so the flags apply to future invocations.
 
 The shared filter file excludes:
 

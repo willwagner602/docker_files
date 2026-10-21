@@ -1,8 +1,8 @@
 [Unit]
-Description=Run gdrive-sync hourly (no-ops if drive isn't mounted)
+Description=Run gdrive-sync every 10 minutes (no-ops if drive isn't mounted)
 
 [Timer]
-OnCalendar=hourly
+OnCalendar=*-*-* *:0/10:00
 RandomizedDelaySec=0
 Persistent=true
 

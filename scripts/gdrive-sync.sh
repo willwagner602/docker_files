@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Two-way sync: local "Slowby/Google Drive" folder <-> Google Drive (rclone remote "google drive:").
-# Whole-tree pass, run hourly (see gdrive-sync.timer). Photos-only runs every minute
+# Whole-tree pass, run every 10 minutes (see gdrive-sync.timer). Photos-only runs every minute
 # via gdrive-sync-photos.sh; both share a flock so they never overlap.
 # Live copy: ~/.local/bin/gdrive-sync.sh (desktop); repo edits do not install themselves.
 # Requires an initial `rclone bisync --resync` per path pair to establish the baseline.
@@ -36,6 +36,8 @@ fi
 "$RCLONE" bisync "$LOCAL_DIR" "$REMOTE" \
     --drive-import-formats docx,xlsx,pptx \
     --filters-file "$FILTERS_FILE" \
+    --fast-list \
+    --checkers=16 \
     --log-file "$LOG_FILE" \
     --log-level INFO \
     --max-lock 2m --resilient --recover \
