@@ -20,7 +20,7 @@
 #
 # Manual run, e.g. for a stop-first consistent copy of the databases:
 #   docker compose stop couchdb unifi-db
-#   docker compose run --rm backup sh -c 'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+#   docker compose run --rm -e BACKUP_NOW=1 backup
 #   docker compose start couchdb unifi-db
 #
 # Output: $DEST_DIR/$ROLE-backup-YYYYMMDDTHHMMSSZ.zip, mirroring the host
@@ -41,11 +41,15 @@ KEEP_WEEKLY=${KEEP_WEEKLY:-11}
 KEEP_MONTHLY=${KEEP_MONTHLY:-9}
 # Defaults used by stacks that do not set EXCLUDES (currently media). A stack
 # that sets EXCLUDES replaces this entire list; values are not merged.
-# Patterns passed to zip -x. The hot-copied SQLite WAL/SHM side files are
-# meaningless mid-write; media's Postgres databases go through pg_dump sidecars.
-# NOTE: patterns must NOT start with "*/" — zip's matcher needs * to consume at
-# least one character, so a leading "*/" never matches a relative archive path.
-EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *ipc-socket}
+# Patterns passed to zip -x. SQLite main databases are re-copied during
+# staging (sqlite_restage below: a consistent snapshot via sqlite3 -readonly
+# and VACUUM INTO), which folds any WAL
+# frames in, so the WAL/SHM side files are redundant in the archive and
+# excluded everywhere; media's Postgres databases go through pg_dump exports
+# instead. NOTE: patterns must NOT start with "*/" — zip's matcher needs * to
+# consume at least one character, so a leading "*/" never matches a relative
+# archive path.
+EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *ipc-socket}
 # *ipc-socket: runtime IPC sockets (e.g. qBittorrent's config/config/ipc-socket)
 # are not backup state; cp -a preserves them into staging and zip fails to
 # read them ("zip warning: No such device or address").
@@ -55,12 +59,70 @@ warn() { log "WARNING: $*" >&2; }
 
 usage() {
   echo "Usage: sh /backup.sh [--now]"
-  echo "  --now  take one snapshot immediately, then exit (no retention changes beyond the usual prune)"
+  echo "  --now       take one snapshot immediately, then exit (no retention changes beyond the usual prune)"
+  echo "  BACKUP_NOW=1 has the same effect when set in the environment (for Compose one-off runs)"
 }
 
 # ---------------------------------------------------------------------------
 # Backup
 # ---------------------------------------------------------------------------
+
+# Re-copy every SQLite database found in a staged tree through sqlite3's
+# .backup command, replacing the cp -a output with a consistent snapshot read
+# from the live source. A plain cp of a hot SQLite database can tear across a
+# concurrent write and misses committed WAL frames until the next checkpoint;
+# a consistent snapshot through SQLite's own library (VACUUM INTO from a
+# -readonly connection) is taken while the app keeps running. Sources stay
+# read-only. Failures are loud: an inconsistent
+# database in the archive is worse than a missing archive, so any SQLite
+# database that cannot be snapshotted fails the whole backup run.
+sqlite_restage() (
+  src_root=$1
+  staged_root=$2
+  list=$(mktemp "${TMPDIR:-/tmp}/sqlite-restage.XXXXXX")
+  trap 'rm -f "$list"' EXIT
+  # Known limitation: a filename containing an embedded newline cannot be
+  # expressed by this one-path-per-line loop and would be skipped silently.
+  # No such file has ever been observed in the staged trees (app-owned names:
+  # plex, arr, frigate, pihole), and the POSIX toolset on the Alpine backup
+  # image offers no NUL-aware line consumer to detect one portably — the
+  # known-empty guard costs more than it protects.
+
+  find "$staged_root" -type f > "$list"
+  status=0
+  while IFS= read -r staged; do
+    # Only main database files carry the 16-byte magic string; WAL/SHM side
+    # files do not, so they are left as staged and stay excluded via EXCLUDES.
+    [ "$(head -c 15 "$staged" 2>/dev/null)" = "SQLite format 3" ] || continue
+    if ! command -v sqlite3 >/dev/null 2>&1; then
+      echo "ERROR: $staged is a SQLite database but sqlite3 is not installed; refusing to archive an inconsistent hot copy" >&2
+      return 1
+    fi
+    rel=${staged#"$staged_root"}
+    live="$src_root$rel"
+    rm -f "$staged"
+    # Source path goes as a plain argv (no file: URI): SQLite's URI parser
+    # treats ?/#/% as metacharacters, so an odd filename could change the
+    # parse. -readonly keeps the read-only contract (an open that would want
+    # to recover a crashed writer's WAL fails here, loudly, rather than
+    # mutating live state); .timeout rides out brief writer locks.
+    # Target goes through VACUUM INTO with SQL escaping ('' doubling), not
+    # the .backup dot-command: the dot-command's quoting breaks on the
+    # apostrophes and spaces these media trees' names contain, which either
+    # aborted the run or silently archived an empty database. VACUUM INTO
+    # produces the same full consistent snapshot (verified against a live
+    # WAL writer) and takes an SQL string, where ordinary escaping applies.
+    # It requires the target not to exist, which the rm above guarantees.
+    staged_sql=$(printf "%s" "$staged" | sed "s/'/''/g")
+    if ! sqlite3 -cmd ".timeout 10000" -readonly "$live" "VACUUM INTO '$staged_sql'"; then
+      echo "ERROR: sqlite3 VACUUM INTO failed for $live; not archiving a possibly inconsistent copy" >&2
+      status=1
+      continue
+    fi
+    log "sqlite .backup: ${rel#/}"
+  done < "$list"
+  return "$status"
+)
 
 # Take one snapshot. Runs in a subshell so the cleanup trap never touches the
 # scheduler loop. The lock directory prevents a manual --now run from racing
@@ -111,6 +173,7 @@ run_backup() (
     fi
     mkdir -p "$work$(dirname "$path")"
     cp -a "$src" "$work$path"
+    sqlite_restage "$src" "$work$path" || return 1
     log "copied $path ($(du -sh "$src" 2>/dev/null | cut -f1))"
   done
 
@@ -122,6 +185,7 @@ run_backup() (
     fi
     mkdir -p "$work/docker-volumes/$volume"
     cp -a "$src/." "$work/docker-volumes/$volume/"
+    sqlite_restage "$src" "$work/docker-volumes/$volume" || return 1
     log "copied volume $volume ($(du -sh "$src" 2>/dev/null | cut -f1))"
   done
 
@@ -225,6 +289,11 @@ seconds_until_next_run() {
 }
 
 main() {
+  if [ "${BACKUP_NOW:-0}" = 1 ]; then
+    run_backup
+    prune_backups
+    return 0
+  fi
   case ${1:-} in
     --now) run_backup; prune_backups; return 0 ;;
     -h | --help) usage; return 0 ;;

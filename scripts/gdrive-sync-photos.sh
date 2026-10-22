@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Two-way sync of the Photos subtree only (local <-> Google Drive), every minute.
 # Own bisync state (separate path pair: .../Google Drive/Photos <-> google drive:Photos).
-# Shares a lock with the hourly whole-tree sync so the two never overlap.
+# Shares a lock with the every-10-minutes whole-tree sync so the two never overlap.
 # Marker path is also read (and seeded) by gdrive-sync-alert.sh; rename in both places together.
 #
 # Live copy: ~/.local/bin/gdrive-sync-photos.sh (desktop). Remote name/paths are

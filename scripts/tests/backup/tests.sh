@@ -12,9 +12,10 @@
 #
 # 2. Coverage tests: for each stack, `docker compose config` is resolved in a
 #    throwaway copy (placeholders instead of secrets, same trick as `make
-#    validate`), and every service's mounts plus required archive files are
-#    cross-referenced against the backup service's declarations. Compose
-#    healthcheck/autoheal invariants are also checked for the media stack.
+#    validate`), and every service's mounts are cross-referenced against the
+#    backup service's BACKUP_PATHS / BACKUP_VOLUMES / EXCLUDED_MOUNTS /
+#    EXTRA_BACKUP_PATHS environment. A container added without backup coverage
+#    fails here, as does a renamed volume or a drifted backup.yml mount.
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -145,15 +146,7 @@ check_stack() { # $1 = stack directory name
     return 1
   }
 
-  canonical_root=$(python3 - "$work/cfg.json" <<'PY'
-import json
-import sys
-env = json.load(open(sys.argv[1]))["services"]["backup"]["environment"]
-script = next((p for p in env.get("EXCLUDED_MOUNTS", "").split() if p.endswith("/scripts/health-notify.sh")), "")
-print(script[:-len("/scripts/health-notify.sh")] if script else "")
-PY
-  )
-  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work" "$canonical_root"; then
+  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work"; then
     ok "$stack: backup coverage covers every deployed service"
   else
     bad "$stack: backup coverage has gaps (see above)"
@@ -171,10 +164,10 @@ cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
   COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
-  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/config.err" || {
-    bad "negative control: compose config failed: $(cat "$negdir/config.err")"
+  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/err.txt" || {
+    bad "negative control: compose config failed: $(cat "$negdir/err.txt")"
     rm -rf "$negdir"
-    exit 1
+    return 1
   }
 python3 - "$negdir/cfg.json" <<'EOF'
 import json
@@ -186,12 +179,13 @@ env["BACKUP_PATHS"] = " ".join(
 )
 json.dump(cfg, open(sys.argv[1], "w"))
 EOF
-if checker_output=$(python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" "$canonical_root" 2>&1); then
+negout=$(python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" 2>&1 | tee "$negdir/checker.txt")
+if python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" >/dev/null 2>&1; then
   bad "negative control: checker did not flag the removed couchdb path"
-elif ! printf '%s\n' "$checker_output" | grep -Fq 'service couchdb mounts /mnt/halfToshibaB/docker/data/couchdb/data which is in neither BACKUP_PATHS nor EXCLUDED_MOUNTS'; then
-  bad "negative control: checker failed for an unexpected reason: $checker_output"
+elif grep -qF "BACKUP_PATHS nor EXCLUDED_MOUNTS" "$negdir/checker.txt"; then
+  ok "negative control: checker flags a removed backup path for the right reason"
 else
-  ok "negative control: checker reports the uncovered couchdb mount"
+  bad "negative control: checker failed for an unexpected reason: $negout"
 fi
 rm -rf "$negdir"
 
@@ -271,6 +265,76 @@ else
   bad "media archive dump fixture: no snapshot was created"
 fi
 rm -rf "$dumpfixture"
+
+# SQLite consistency: a hot SQLite database whose latest row exists only in
+# the -wal file must be restaged through sqlite3 .backup, not cp -a. The
+# fixture holds a WAL connection open while the backup runs (closing it would
+# checkpoint the WAL into the main database and defeat the test), so a plain
+# copy of the main database file would lose the marker row. Skipped when no
+# sqlite3 CLI is installed locally; the backup containers install one.
+sq=$(mktemp_d)
+sqdb="$sq/backup-roots/plexdata/Plug-in Support/Databases/library.db"
+mkdir -p "$(dirname "$sqdb")"
+marker="wal-row-$$"
+if command -v sqlite3 >/dev/null 2>&1; then
+  python3 -c '
+import sqlite3, sys, time
+con = sqlite3.connect(sys.argv[1])
+con.execute("PRAGMA journal_mode=WAL")
+con.execute("CREATE TABLE t(x TEXT)")
+con.execute("INSERT INTO t VALUES(?)", (sys.argv[2],))
+con.commit()
+time.sleep(120)
+' "$sqdb" "$marker" &
+  holder=$!
+  sleep 1
+  ROLE=media DEST_DIR="$sq" PATH_ROOT="$sq/backup-roots" \
+    BACKUP_PATHS="/plexdata" BACKUP_VOLUMES= EXCLUDES="*.db-wal *.db-shm" \
+    BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >"$sq/run.out" 2>"$sq/run.err"
+  rc=$?
+  kill "$holder" 2>/dev/null
+  wait "$holder" 2>/dev/null
+  if [ "$rc" -ne 0 ]; then
+    bad "sqlite consistency: backup run failed (rc=$rc)"
+    sed 's/^/      /' "$sq/run.err" >&2
+  else
+    grep -Fq "sqlite .backup: Plug-in Support/Databases/library.db" "$sq/run.out" \
+      && ok "sqlite consistency: WAL database restaged via sqlite3 .backup" \
+      || bad "sqlite consistency: no .backup log line for library.db"
+    sidecar_in_zip=0
+    for side in ".db-wal" ".db-shm"; do
+      unzip -l "$sq"/media-backup-*.zip | grep -qF "$side" && sidecar_in_zip=1
+    done
+    [ "$sidecar_in_zip" = 0 ] && ok "sqlite consistency: WAL/SHM side files excluded from archive" \
+      || bad "sqlite consistency: side files present in archive"
+    unzip -p "$sq"/media-backup-*.zip "plexdata/Plug-in Support/Databases/library.db" > "$sq/extracted.db"
+    got=$(sqlite3 "$sq/extracted.db" "SELECT x FROM t")
+    assert_eq "sqlite consistency: archived copy contains the WAL-only row" "$marker" "$got"
+  fi
+else
+  ok "sqlite consistency: SKIPPED (sqlite3 CLI not installed on this host)"
+fi
+rm -rf "$sq"
+
+# Loud failure: a file that claims to be SQLite (magic header) but is not a
+# valid database must abort the backup instead of silently archiving junk.
+# Works with or without the sqlite3 CLI: with one, .backup rejects the file;
+# without one, the missing-binary guard fires.
+sqbad=$(mktemp_d)
+mkdir -p "$sqbad/backup-roots/arr"
+{ printf 'SQLite format 3\000'; printf 'not really a database'; } > "$sqbad/backup-roots/arr/broken.db"
+ROLE=media DEST_DIR="$sqbad" PATH_ROOT="$sqbad/backup-roots" \
+  BACKUP_PATHS="/arr" BACKUP_VOLUMES= EXCLUDES= \
+  BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >"$sqbad/run.out" 2>"$sqbad/run.err"
+rc=$?
+if [ "$rc" -eq 0 ] || [ -n "$(ls "$sqbad"/media-backup-*.zip 2>/dev/null)" ]; then
+  bad "sqlite loud-failure: corrupt database did not abort the backup (rc=$rc)"
+else
+  grep -qi "sqlite" "$sqbad/run.err" \
+    && ok "sqlite loud-failure: corrupt SQLite file aborts the backup with an error" \
+    || bad "sqlite loud-failure: backup aborted but no sqlite error reported"
+fi
+rm -rf "$sqbad"
 
 # Case D: end-to-end exclusion check. Resolve EXCLUDES from general's actual
 # Compose config, then take a real --now snapshot of fake bind and named-volume
