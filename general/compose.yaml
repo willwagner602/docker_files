@@ -17,3 +17,4 @@ include:
   - telegram-alerter.yml
   - mindwtr.yml
   - health-notify-general.yml
+  - iot-mdns-reflector.yml

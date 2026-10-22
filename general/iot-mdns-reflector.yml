@@ -1,0 +1,62 @@
+# mDNS reflector: re-announces AirPlay/Chromecast services between the Trusted
+# LAN (VLAN 1, untagged 10.0.0.0/24) and IoT Insecure (VLAN 3, 10.0.3.0/24).
+#
+# mDNS deliberately does not cross VLANs; cast targets on IoT VLANs otherwise
+# disappear from phones. This runs Avahi in reflector mode with a service-type
+# filter so only cast/airplay announcements are replayed — nothing else crosses
+# the boundary, and the camera / IoT-HA zones are never reflected at all.
+#
+# Image: flungo/avahi (https://github.com/flungo-docker/avahi) — Alpine Avahi
+# daemon whose env vars map 1:1 onto avahi-daemon.conf sections.
+#
+# Host prerequisites (see ~/iot-migration.md):
+#   - ENO_IFACE below must be set to the wbw-ha host's wired NIC name.
+#   - The physical switch port must trunk VLAN 3 tagged toward this host.
+#   - .3 static-IP choices must sit outside both DHCP pools.
+
+services:
+  mdns-reflector:
+    image: flungo/avahi:latest # pin a digest after first pull
+    container_name: mdns-reflector
+    restart: unless-stopped
+    cap_drop: [ALL] # avahi needs nothing privileged
+    environment:
+      REFLECTOR_ENABLE_REFLECTOR: "yes"
+      # Only replay the service types that must cross; everything else stays
+      # zone-local. Extend if another service type is later needed.
+      REFLECTOR_REFLECT_FILTERS: "_airplay._tcp.local,_raop._tcp.local,_googlecast._tcp.local"
+      SERVER_USE_IPV4: "yes"
+      SERVER_USE_IPV6: "no"
+    networks:
+      trusted:
+        ipv4_address: 10.0.0.65  # outside any DHCP reservation scope
+      iot-insecure:
+        ipv4_address: 10.0.3.65
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Physical-network attachments. The reflector needs one interface per zone;
+# macvlan parent sub-interfaces are created by the driver on the fly
+# (parent wlan/eth NIC name must be set to the wbw-ha host's wired NIC).
+networks:
+  trusted:
+    name: lan-trusted-mdns
+    driver: macvlan
+    driver_opts:
+      parent: eno1.1.1 # TODO: host NIC name — replace before deploy
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+          gateway: 10.0.0.1
+  iot-insecure:
+    name: lan-iot3-mdns
+    driver: macvlan
+    driver_opts:
+      parent: eno1.3 # tagged VLAN 3
+    ipam:
+      config:
+        - subnet: 10.0.3.0/24
+          gateway: 10.0.3.1
