@@ -274,10 +274,12 @@ caches, live database data dirs) are listed in `EXCLUDED_MOUNTS` with reasons in
 
 Databases on media are not hot-copied: `postgres-db-dump` (media/postgres.yml)
 and `immich-db-dump` (media/immich.yml) export nightly `pg_dumpall` snapshots to
-`/bigdisk/db-dumps`, which the backup zips. On general, CouchDB, UniFi's
-MongoDB, and Home Assistant's SQLite database are hot-copied (excluding
-mid-write SQLite side files); see the CouchDB section below for a consistent
-alternative.
+`/bigdisk/db-dumps`, which the backup zips. Every SQLite database found in the
+protected trees (Plex, the arr apps, Ombi, Stash, Frigate, Home Assistant on
+general) is re-copied through `sqlite3 .backup` during staging, so the archived
+file is a consistent snapshot even though the app keeps running; WAL/SHM side
+files are excluded. On general, CouchDB and UniFi's MongoDB are hot-copied; see
+the CouchDB section below for a consistent alternative.
 
 Retention is grandfather-father-son: the last 7 daily snapshots, then one per
 week for 11 weeks, then one per month for 9 months — 27 restore points. Pruning
@@ -289,7 +291,7 @@ Manual run (e.g. for a stop-first consistent copy of the general databases):
 ```sh
 cd general
 docker compose stop couchdb unifi-db
-docker compose run --rm backup sh -c 'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+docker compose run --rm -e BACKUP_NOW=1 backup
 docker compose start couchdb unifi-db
 ```
 
@@ -366,8 +368,7 @@ Scripts live in
 
 ```sh
 cd general && docker compose stop couchdb
-# see "Backups" above: docker compose run --rm backup sh -c \
-#   'apk add --no-cache zip >/dev/null && sh /backup.sh --now'
+# See "Backups" above for the one-off `docker compose run --rm -e BACKUP_NOW=1 backup` command.
 docker compose start couchdb
 ```
 

@@ -189,6 +189,153 @@ else
 fi
 rm -rf "$negdir"
 
+# Media negative controls: required dump coverage and the service health/autoheal
+# contract must fail closed when a declaration drifts.
+mediadir=$(mktemp_d)
+cp -R "$REPO/media" "$mediadir/media"
+TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
+  PIA_USER=ci-placeholder PIA_PASS=ci-placeholder \
+  FRIGATE_RTSP_PASSWORD=ci-placeholder POSTGRES_PASSWORD=ci-placeholder \
+  PLEX_CLAIM=ci-placeholder SONARR_API_KEY=ci-placeholder RADARR_API_KEY=ci-placeholder \
+  SAB_API_KEY=ci-placeholder PLUS_API_KEY=ci-placeholder \
+  IMMICH_VERSION=v3.1.0 IMMICH_DB_PASSWORD=ci-placeholder \
+  PHOTO_UPLOADER_OPERATOR_USERNAME=ci-placeholder PHOTO_UPLOADER_OPERATOR_PASSWORD=ci-placeholder \
+  PHOTO_UPLOADER_SESSION_SECRET=ci-placeholder PHOTO_UPLOADER_BSKY_HANDLE=ci-placeholder \
+  PHOTO_UPLOADER_BSKY_APP_PASSWORD=ci-placeholder PHOTO_UPLOADER_PHOTO_PATH=/tmp \
+  docker compose --project-directory "$mediadir/media" config --format json > "$mediadir/cfg.json" || {
+    bad "media negative controls: compose config failed"
+  }
+python3 - "$mediadir/cfg.json" "$mediadir" <<'PY'
+import copy, json, sys
+cfg = json.load(open(sys.argv[1]))
+root = sys.argv[2]
+cases = {}
+
+case = copy.deepcopy(cfg)
+env = case["services"]["backup"]["environment"]
+env["BACKUP_PATHS"] = " ".join(p for p in env["BACKUP_PATHS"].split() if p != "/bigdisk/db-dumps")
+cases["missing-required-dump-coverage"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["whisparr"]["labels"].pop("autoheal", None)
+cases["whisparr-autoheal-label"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["whisparr"].pop("healthcheck", None)
+cases["whisparr-healthcheck"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["immich-server"].setdefault("labels", {})["autoheal"] = "true"
+cases["immich-server-autoheal-exclusion"] = case
+
+case = copy.deepcopy(cfg)
+case["services"]["immich-db-dump"]["healthcheck"]["test"] = ["CMD-SHELL", "true"]
+cases["immich-dump-freshness-check"] = case
+
+for name, case in cases.items():
+    json.dump(case, open(f"{root}/{name}.json", "w"))
+PY
+for case in missing-required-dump-coverage whisparr-autoheal-label whisparr-healthcheck immich-server-autoheal-exclusion immich-dump-freshness-check; do
+  if python3 "$HERE/coverage_check.py" "$mediadir/$case.json" media "$mediadir" >/dev/null 2>&1; then
+    bad "media invariant negative control: $case was not detected"
+  else
+    ok "media invariant negative control: $case detected"
+  fi
+done
+rm -rf "$mediadir"
+
+# Media dump archive smoke test: the declared SQL restore points must survive
+# the real backup script's staging/zip path. Freshness is tested separately by
+# the dump service healthchecks, not by this static fixture.
+dumpfixture=$(mktemp_d)
+mkdir -p "$dumpfixture/backup-roots/bigdisk/db-dumps"
+printf 'postgres fixture dump\\n' > "$dumpfixture/backup-roots/bigdisk/db-dumps/postgres-all.sql"
+printf 'immich fixture dump\\n' > "$dumpfixture/backup-roots/bigdisk/db-dumps/immich-all.sql"
+ROLE=media DEST_DIR="$dumpfixture" PATH_ROOT="$dumpfixture/backup-roots" \
+  BACKUP_PATHS="/bigdisk/db-dumps" BACKUP_VOLUMES= EXCLUDES= \
+  BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
+media_zip=$(ls "$dumpfixture"/media-backup-*.zip 2>/dev/null | head -1)
+if [ -n "$media_zip" ]; then
+  for dump in bigdisk/db-dumps/postgres-all.sql bigdisk/db-dumps/immich-all.sql; do
+    unzip -l "$media_zip" | grep -q "$dump" \
+      && ok "media archive includes $dump" \
+      || bad "media archive missing $dump"
+  done
+else
+  bad "media archive dump fixture: no snapshot was created"
+fi
+rm -rf "$dumpfixture"
+
+# SQLite consistency: a hot SQLite database whose latest row exists only in
+# the -wal file must be restaged through sqlite3 .backup, not cp -a. The
+# fixture holds a WAL connection open while the backup runs (closing it would
+# checkpoint the WAL into the main database and defeat the test), so a plain
+# copy of the main database file would lose the marker row. Skipped when no
+# sqlite3 CLI is installed locally; the backup containers install one.
+sq=$(mktemp_d)
+sqdb="$sq/backup-roots/plexdata/Plug-in Support/Databases/library.db"
+mkdir -p "$(dirname "$sqdb")"
+marker="wal-row-$$"
+if command -v sqlite3 >/dev/null 2>&1; then
+  python3 -c '
+import sqlite3, sys, time
+con = sqlite3.connect(sys.argv[1])
+con.execute("PRAGMA journal_mode=WAL")
+con.execute("CREATE TABLE t(x TEXT)")
+con.execute("INSERT INTO t VALUES(?)", (sys.argv[2],))
+con.commit()
+time.sleep(120)
+' "$sqdb" "$marker" &
+  holder=$!
+  sleep 1
+  ROLE=media DEST_DIR="$sq" PATH_ROOT="$sq/backup-roots" \
+    BACKUP_PATHS="/plexdata" BACKUP_VOLUMES= EXCLUDES="*.db-wal *.db-shm" \
+    BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >"$sq/run.out" 2>"$sq/run.err"
+  rc=$?
+  kill "$holder" 2>/dev/null
+  wait "$holder" 2>/dev/null
+  if [ "$rc" -ne 0 ]; then
+    bad "sqlite consistency: backup run failed (rc=$rc)"
+    sed 's/^/      /' "$sq/run.err" >&2
+  else
+    grep -Fq "sqlite .backup: Plug-in Support/Databases/library.db" "$sq/run.out" \
+      && ok "sqlite consistency: WAL database restaged via sqlite3 .backup" \
+      || bad "sqlite consistency: no .backup log line for library.db"
+    sidecar_in_zip=0
+    for side in ".db-wal" ".db-shm"; do
+      unzip -l "$sq"/media-backup-*.zip | grep -qF "$side" && sidecar_in_zip=1
+    done
+    [ "$sidecar_in_zip" = 0 ] && ok "sqlite consistency: WAL/SHM side files excluded from archive" \
+      || bad "sqlite consistency: side files present in archive"
+    unzip -p "$sq"/media-backup-*.zip "plexdata/Plug-in Support/Databases/library.db" > "$sq/extracted.db"
+    got=$(sqlite3 "$sq/extracted.db" "SELECT x FROM t")
+    assert_eq "sqlite consistency: archived copy contains the WAL-only row" "$marker" "$got"
+  fi
+else
+  ok "sqlite consistency: SKIPPED (sqlite3 CLI not installed on this host)"
+fi
+rm -rf "$sq"
+
+# Loud failure: a file that claims to be SQLite (magic header) but is not a
+# valid database must abort the backup instead of silently archiving junk.
+# Works with or without the sqlite3 CLI: with one, .backup rejects the file;
+# without one, the missing-binary guard fires.
+sqbad=$(mktemp_d)
+mkdir -p "$sqbad/backup-roots/arr"
+{ printf 'SQLite format 3\000'; printf 'not really a database'; } > "$sqbad/backup-roots/arr/broken.db"
+ROLE=media DEST_DIR="$sqbad" PATH_ROOT="$sqbad/backup-roots" \
+  BACKUP_PATHS="/arr" BACKUP_VOLUMES= EXCLUDES= \
+  BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >"$sqbad/run.out" 2>"$sqbad/run.err"
+rc=$?
+if [ "$rc" -eq 0 ] || [ -n "$(ls "$sqbad"/media-backup-*.zip 2>/dev/null)" ]; then
+  bad "sqlite loud-failure: corrupt database did not abort the backup (rc=$rc)"
+else
+  grep -qi "sqlite" "$sqbad/run.err" \
+    && ok "sqlite loud-failure: corrupt SQLite file aborts the backup with an error" \
+    || bad "sqlite loud-failure: backup aborted but no sqlite error reported"
+fi
+rm -rf "$sqbad"
+
 # Case D: end-to-end exclusion check. Resolve EXCLUDES from general's actual
 # Compose config, then take a real --now snapshot of fake bind and named-volume
 # state. This guards zip pattern semantics across both archive layouts.
