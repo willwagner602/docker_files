@@ -2,7 +2,7 @@
 
 This document describes the rclone setup on `wbw-desktop`. The desktop uses two-way bisync jobs between an external NTFS drive and Google Drive, plus a user-level staleness watcher. The separate `media` machine has its own Google Drive bisync; its unit and paths are not used on this desktop.
 
-The repository version of the scripts and systemd user units lives under `scripts/` and `systemd/user/`. The installed copies in `~/.local/bin/` and `~/.config/systemd/user/` are machine-local. `make check-gdrive` detects drift for the scripts, unit files, and filters file only; it runs as part of `make check` on hosts that have installed copies (skipped on CI hosts, which have none), and it says nothing about the behavioral facts this document asserts — update the document by hand when installed behavior changes.
+The repository version of the scripts and systemd user units lives under `scripts/` and `systemd/user/`. The installed copies in `~/.local/bin/` and `~/.config/systemd/user/` are machine-local. `make check-gdrive` detects drift for the scripts, unit files, and filters file only. It runs as part of `make check` on hosts that have installed copies; CI hosts, which have none, skip it. It says nothing about the behavioral facts this document asserts — update the document by hand when installed behavior changes.
 
 Values marked "at inspection" were true on their stated date and may drift; everything else in this document is standing configuration. File counts, check totals, listed-entry totals, and sizes are self-documenting at read time — re-measure them with the log and mount commands below rather than trusting a recorded snapshot.
 
@@ -44,7 +44,7 @@ success markers  →  gdrive-sync-alert.service
 
 The whole-tree timer is defined in `systemd/user/gdrive-sync.timer`, whose `OnCalendar` value is the single source of truth for the current cadence — the prose here, the script header comment, and the README's schedule table are summaries, not the authority. The whole-tree timer currently has `OnCalendar=*-*-* *:0/10:00` (every 10 minutes), no random delay, and `Persistent=false` (set explicitly on 2026-10-21; a missed tick on resume is not worth a catch-up burst, and the next 10-minute tick catches up naturally). The Photos timer remains `OnCalendar=*:*:00`, with one-second accuracy. It has never used `Persistent=true`, since per-minute ticks are meant to be skipped freely when they lose the lock. The watcher is a resident user service that restarts on failure. (Cadence history: hourly until 2026-10-20, then every two hours, then every 15 minutes, then every 10 minutes on 2026-10-21.)
 
-Whole-tree runtimes have not been re-measured since `--fast-list` was enabled; re-measure with the log's `Elapsed time:` lines rather than relying on a recorded figure here.
+Whole-tree runtimes were last measured around the `--fast-list` switch (see "rclone options" below for the figures and their provenance); re-measure with the log's `Elapsed time:` lines rather than relying on a recorded figure here.
 
 ## Unit definitions
 
@@ -62,7 +62,7 @@ The sync units run as systemd user services. The timers are enabled; the service
 
 The whole-tree command is assembled in `scripts/gdrive-sync.sh`; the Photos command is assembled in `scripts/gdrive-sync-photos.sh`. Both use `--drive-import-formats docx,xlsx,pptx`, the shared filters file, INFO logging, `--max-lock 2m`, `--resilient`, and `--recover`.
 
-The whole-tree job additionally uses `--fast-list` and `--checkers=16`. `--fast-list` uses recursive listing where supported, trading more memory for fewer listing transactions; `--checkers=16` runs more checks in parallel. These scan-speed options were added to the desktop whole-tree script on 2026-10-20, based on the corresponding media-host command. The Photos script does not currently use them. Subsequent whole-tree runs completed in roughly 3½–5¼ minutes, down from about 1h32m before the options were added; this is an observed before/after, not a controlled benchmark. A running rclone process does not inherit edits to its script, so the flags apply to future invocations.
+The whole-tree job additionally uses `--fast-list` and `--checkers=16`. `--fast-list` uses recursive listing where supported, trading more memory for fewer listing transactions; `--checkers=16` runs more checks in parallel. These scan-speed options were added to the desktop whole-tree script on 2026-10-20, based on the corresponding media-host command. The Photos script does not currently use them. Subsequent whole-tree runs completed in roughly 3½–5¼ minutes, down from about 1h32m before the options were added; this is an observed before/after, not a controlled benchmark. Both figures come from sync.log's `Elapsed time:` lines — the 1h32m baseline is the last pre-flag whole-tree run, the 3½–5¼ min range the first post-flag runs. Nothing more recent has been re-measured; use the log's Elapsed lines for current values. A running rclone process does not inherit edits to its script, so the flags apply to future invocations.
 
 The shared filter file excludes:
 

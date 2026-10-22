@@ -12,8 +12,9 @@
 #
 # Live copy: ~/.local/bin/gdrive-sync-alert.sh (desktop). See
 # systemd/user/README.md in this repo for the full setup.
-# Marker paths last-sync.ok and last-sync-photos.ok are also read (and seeded) by
-# the two sync scripts; rename them in all three places together.
+# Marker paths last-sync.ok and last-sync-photos.ok are written on successful
+# bisync by the two sync scripts and read (and seeded) by this watcher; rename
+# them in all three places together.
 set -u
 
 LOG_DIR="${HOME}/.local/state/gdrive-sync"
