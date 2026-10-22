@@ -38,7 +38,7 @@ services:
       #     in this monitoring-only setup.
       #   /etc/komodo/backups — Komodo Core's own dated DB dumps; redundant
       #     with the komodo-mongo-* volumes that are backed up directly.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo /home/wbw/work/docker_files/scripts/health-notify.sh
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo /home/wbw/work/docker_files/scripts/health-notify.sh /home/wbw/work/docker_files/general/job-digest-config.json
       # Additional paths with backup coverage that are not mounted by a service.
       - EXTRA_BACKUP_PATHS=/home/wbw/work/job-search-tooling
       # Exclude transient SQLite sidecars and obsolete/corrupt HA database files.
