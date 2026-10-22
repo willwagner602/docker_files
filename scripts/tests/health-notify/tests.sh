@@ -245,6 +245,20 @@ export STUB_EVENTS='health_status: healthy|db||'
 run_body 'handle_events'
 assert "health_status healthy -> 'healthy again'" "$(sent 'db is healthy again' && echo 0 || echo 1)"
 
+# Real production names: PR "Set explicit names for Compose containers" renamed
+# containers to host-prefixed names (general-mosquitto, general-nginx-proxy,
+# ...). State keys derive from the daemon-reported name, so pin one real
+# prefixed name through the die/start marker path to catch a regression there.
+new_case ev-realname
+export STUB_EVENTS='die|general-nginx-proxy|137|'
+run_body 'handle_events'
+assert "die for real prefixed name -> stopped alert" "$(sent 'general-nginx-proxy stopped (exit=137' && echo 0 || echo 1)"
+assert "down.general-nginx-proxy marker written" "$([ -f "$STATE_DIR/down.general-nginx-proxy" ] && echo 0 || echo 1)"
+export STUB_EVENTS='start|general-nginx-proxy||'
+run_body 'handle_events'
+assert "start for real prefixed name -> 'started again'" "$(sent 'general-nginx-proxy started again' && echo 0 || echo 1)"
+assert "down.general-nginx-proxy marker cleared" "$([ ! -f "$STATE_DIR/down.general-nginx-proxy" ] && echo 0 || echo 1)"
+
 # ===========================================================================
 echo
 echo "### H. reconcile_health (startup sweep of already-unhealthy)"
@@ -261,6 +275,14 @@ new_case reconcile-stopped
 export STUB_PS=''
 run_body 'reconcile_health'
 assert "no running containers -> silent" "$([ "$(sends)" = 0 ] && echo 0 || echo 1)"
+
+# Same pin for the startup sweep: a real prefixed name must alert and record
+# health state under its own key.
+new_case reconcile-realname
+export STUB_PS='general-mosquitto'
+run_body 'reconcile_health'
+assert "real prefixed unhealthy name alerts at startup" "$(sent 'general-mosquitto is unhealthy' && echo 0 || echo 1)"
+assert "health.general-mosquitto=unhealthy recorded" "$([ "$(cat "$STATE_DIR/health.general-mosquitto")" = unhealthy ] && echo 0 || echo 1)"
 
 # ===========================================================================
 echo
