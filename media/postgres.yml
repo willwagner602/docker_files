@@ -22,12 +22,17 @@ services:
   # Daily pg_dumpall export consumed by the backup service (media/backup.yml).
   # Hot-copying /var/lib/postgresql/data can capture the database mid-write, so
   # the backup zips this SQL snapshot instead of the raw data dir. One dump per
-  # day (start + every 24h), atomically replaced; history comes from the zip
+  # day (start + every 24h), atomically replaced; a failed dump retries every
+  # 5 minutes instead of waiting out the 24h sleep. History comes from the zip
   # retention schedule, not from this directory.
   postgres-db-dump:
     image: postgres:16@sha256:4b7183ac05f8ef417db21fd72d71047a4238340c261d3cc3ddb6d579ab5071ae
     container_name: postgres-db-dump
     restart: unless-stopped
+    # This container has no local postgres: it only runs daily pg_dumpall
+    # against postgres. Check the completed export instead; a missing, empty,
+    # or older-than-25-hours dump marks this service unhealthy for
+    # health-notify.
     healthcheck:
       test: ["CMD-SHELL", "test -s /dumps/postgres-all.sql && find /dumps/postgres-all.sql -mmin -1500 -print -quit | grep -q ."]
       interval: 5m
@@ -47,9 +52,10 @@ services:
     volumes:
       - /bigdisk/db-dumps:/dumps
     command: >-
-      sh -c "while :; do
-      pg_dumpall -h postgres -U plex --clean --if-exists > /dumps/postgres-all.sql.part
-      && mv /dumps/postgres-all.sql.part /dumps/postgres-all.sql
-      && echo '$$(date -u +%FT%TZ) postgres dump ok'
-      || echo 'postgres dump FAILED; retrying in 24h';
-      sleep 86400; done"
+      sh -c 'while :; do
+      if pg_dumpall -h postgres -U plex --clean --if-exists > /dumps/postgres-all.sql.part
+      && mv /dumps/postgres-all.sql.part /dumps/postgres-all.sql; then
+      echo "$$(date -u +%FT%TZ) postgres dump ok"; sleep 86400;
+      else
+      echo "$$(date -u +%FT%TZ) postgres dump FAILED; retrying in 5m";
+      rm -f /dumps/postgres-all.sql.part; sleep 300; fi; done'

@@ -19,8 +19,9 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    # tzdata for BACKUP_AT in local time; zip for the archive itself.
-    command: sh -c "apk add --no-cache tzdata zip >/dev/null && exec sh /backup.sh"
+    # tzdata for BACKUP_AT in local time; zip for the archive itself; sqlite
+    # for consistent sqlite3 .backup copies of hot SQLite databases.
+    command: sh -c "apk add --no-cache sqlite tzdata zip >/dev/null && exec sh /backup.sh"
     environment:
       - TZ=America/Los_Angeles
       - ROLE=media
@@ -30,10 +31,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /media/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps
-      # SQL exports are the database restore points; coverage_check verifies
-      # that their containing directory remains declared for backup.
-      - REQUIRED_BACKUP_FILES=/bigdisk/db-dumps/postgres-all.sql /bigdisk/db-dumps/immich-all.sql
+      - BACKUP_PATHS=/config/frigate /home/wbw/health-notify/media /home/wbw/photo-uploader-data /home/wbw/unpackerr /bigdisk/plex/plex /bigdisk/plex/sonarr /bigdisk/plex/radarr /bigdisk/plex/whisparr /bigdisk/plex/ombi /bigdisk/plex/stash/config /bigdisk/plex/stash/metadata /bigdisk/prowlarr /media/qbittorrent/config /bigdisk/sabnzbd/config /bigdisk/db-dumps /home/wbw/work/docker_files
       # No named volumes are in use by any media service, except Komodo's.
       # The Komodo agent keys live in the named komodo-keys volume.
       - BACKUP_VOLUMES=komodo-keys
@@ -58,9 +56,9 @@ services:
       #     — sensitive client state and volume identities; preserved separately
       #     in restricted recovery checkpoints, not the routine archive.
       #   /bigdisk/google-drive — upstream mirror, regenerable from Google Drive.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /bigdisk/plex /bigdisk/plex/tv /bigdisk/plex/movies /bigdisk/plex/downloads/xxx-inbox /bigdisk/plex/downloads/whisparr /bigdisk/plex/xxx /bigdisk/plex/stash/generated /bigdisk/plex/stash/cache /bigdisk/frigate /bigdisk/immich/library /bigdisk/immich/model-cache /bigdisk/immich/postgres /bigdisk/plex/database /path/to/photos /proc /etc/komodo /bigdisk/google-drive/Photos /bigdisk/photos /bigdisk/backblaze-personal/config /home/wbw/backblaze-drive-markers/d /home/wbw/backblaze-drive-markers/e /bigdisk/google-drive /home/wbw/work/docker_files/scripts/health-notify.sh
-      # Additional paths with backup coverage that are not mounted by a service.
-      - EXTRA_BACKUP_PATHS=
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /bigdisk/plex /bigdisk/plex/tv /bigdisk/plex/movies /bigdisk/plex/downloads/xxx-inbox /bigdisk/plex/downloads/whisparr /bigdisk/plex/xxx /bigdisk/plex/stash/generated /bigdisk/plex/stash/cache /bigdisk/frigate /bigdisk/immich/library /bigdisk/immich/model-cache /bigdisk/immich/postgres /bigdisk/plex/database /path/to/photos /proc /etc/komodo /bigdisk/google-drive/Photos /bigdisk/photos /bigdisk/backblaze-personal/config /home/wbw/backblaze-drive-markers/d /home/wbw/backblaze-drive-markers/e /bigdisk/google-drive
+      # Backup paths that no service mounts (repo copy for restorability).
+      - EXTRA_BACKUP_PATHS=/home/wbw/work/docker_files
       # Zip-level excludes. Restates the script defaults (WAL/SHM sidecars,
       # IPC sockets), skips application logs (~375 MB), and trims Plex's
       # config to the library/blobs databases + Preferences.xml (decision
@@ -92,6 +90,7 @@ services:
       - /media/qbittorrent/config:/backup-roots/media/qbittorrent/config:ro
       - /bigdisk/sabnzbd/config:/backup-roots/bigdisk/sabnzbd/config:ro
       - /bigdisk/db-dumps:/backup-roots/bigdisk/db-dumps:ro
+      - /home/wbw/work/docker_files:/backup-roots/home/wbw/work/docker_files:ro
       # --- protected named volumes (read-only) ---
       - komodo-keys:/volume-roots/komodo-keys:ro
       # --- run lock (local disk, outside the synced mirror) ---
