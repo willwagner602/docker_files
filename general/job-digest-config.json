@@ -1,0 +1,14 @@
+{
+  "classification": {
+    "provider": "typesafe",
+    "model": "jev-latest"
+  },
+  "hn_extraction": {
+    "provider": "anthropic",
+    "model": "claude-haiku-4-5-20251001"
+  },
+  "resume_generation": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-5-20250929"
+  }
+}
