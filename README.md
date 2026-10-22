@@ -125,20 +125,7 @@ docker compose logs -f unifi
 
 These files use host-specific bind mounts, device mappings, and environment variables. Before starting a service:
 
-1. Confirm that the referenced host paths and devices exist. Create a dedicated `docker-manager` account if it is missing; it owns the host data tree but does not need membership in the `docker` group (that group grants root-equivalent Docker control). For the CouchDB and Mindwtr bind mounts, also grant only the container UIDs that need access: CouchDB runs as UID 5984 and Mindwtr as UID/GID 1000. Install `acl`, then create/own the directories and add named ACL entries rather than making the files world-accessible:
-
-   ```sh
-   sudo id docker-manager >/dev/null 2>&1 || sudo useradd --system --create-home --shell /usr/sbin/nologin docker-manager
-   sudo apt-get install acl
-   sudo install -d -o docker-manager -g docker-manager /mnt/halfToshibaB/docker/data/couchdb/data /mnt/halfToshibaB/docker/data/couchdb/etc /mnt/halfToshibaB/docker/data/mindwtr
-   sudo chown -R docker-manager:docker-manager /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/mindwtr
-   sudo setfacl -R -m u:docker-manager:rwx,u:5984:rwx /mnt/halfToshibaB/docker/data/couchdb
-   sudo find /mnt/halfToshibaB/docker/data/couchdb -type d -exec setfacl -m d:u:docker-manager:rwx,d:u:5984:rwx {} +
-   sudo setfacl -R -m u:docker-manager:rwx,u:1000:rwx /mnt/halfToshibaB/docker/data/mindwtr
-   sudo find /mnt/halfToshibaB/docker/data/mindwtr -type d -exec setfacl -m d:u:docker-manager:rwx,d:u:1000:rwx {} +
-   ```
-
-   The `docker` group is not a substitute for these ACLs: container processes do not automatically run with the host's Docker group. Docker creates missing bind-mount sources as root-owned, which leaves CouchDB unable to write.
+1. Confirm that the referenced host paths and devices exist. For CouchDB, create the bind-mount directories before the first start and give them to UID 5984:5984, the `couchdb` user and group inside the container (verified against the image: the entry process runs as root and drops to couchdb/5984): `mkdir -p /mnt/halfToshibaB/docker/data/couchdb/{data,etc} && chown -R 5984:5984 /mnt/halfToshibaB/docker/data/couchdb/{data,etc} && chmod -R u+rwX /mnt/halfToshibaB/docker/data/couchdb/{data,etc}`. Docker creates missing bind-mount sources as root-owned, which leaves CouchDB unable to write. Do not use a world-accessible mode: the data directory holds password hashes and session state.
 2. Provide required variables through an environment file or the shell. Examples include `POSTGRES_PASSWORD`, `SONARR_API_KEY`, `RADARR_API_KEY`, `SAB_API_KEY`, `COUCHDB_USER` and `COUCHDB_PASSWORD` for CouchDB, `PIHOLE_WEBPASSWORD`, `MONGO_INITDB_ROOT_PASSWORD`, `MONGO_PASS`, and `ZWAVE_SESSION_SECRET` for the general services, and the VPN variables used by SABnzbd and qBittorrent. Photo uploader additionally requires `PHOTO_UPLOADER_PHOTO_PATH`, operator credentials, a session secret, a Bluesky handle, and a Bluesky App Password; it stores its SQLite database in the named `photo-uploader-data` volume.
 3. Review credentials and secrets before deployment. Some existing service definitions contain deployment-specific values and should be treated as sensitive.
 4. Ensure the required Docker networks and host permissions are available.
@@ -226,26 +213,16 @@ directly in Polytoken.
    replace the Komodo placeholders with the Core URL and API credentials. Keep
    real values in the ignored `.env`, never the tracked example. The Komodo key
    should belong to a user with only the needed read grants. Optional variables
-<<<<<<< HEAD
    for HA_TOKEN, UniFi, Pi-hole, and Frigate are listed in the example; they are
    for the Polytoken process, not Compose.
-=======
-   for UniFi, Pi-hole, and Frigate are listed in the example; they are for the
-   Polytoken process, not Compose.
->>>>>>> origin/main
 2. **Validate before starting anything.** From the repository root run
    `make validate`. This checks all Compose stacks using placeholder values and
    does not start containers. To validate Polytoken's merged global config, run
    `polytoken config validate`.
 3. **Start container-backed servers when ready.** From `desktop/`, run
    `docker compose up -d komodo-mcp arr-mcp`. Komodo requires the values in
-<<<<<<< HEAD
-   `.env`; ARR starts its own local dashboard; open it once to become its first owner,
-   then configure the ARR services' own API keys before the MCP server can
-=======
    `.env`; ARR starts its own local dashboard, which must be claimed and
    configured with the *ARR services' own API keys* before the MCP server can
->>>>>>> origin/main
    use them. Its client endpoint is `http://127.0.0.1:6060/mcp`. Do not expose
    these unauthenticated local services beyond loopback.
 4. **Register clients in Polytoken.** For each desired server, copy the
@@ -320,21 +297,20 @@ docker compose start couchdb unifi-db
 
 Restore: unzip the snapshot (it mirrors the host layout, with named volumes
 under `docker-volumes/<volume-name>`), stop the affected services, copy the
-state back, then reapply the owner and container-UID ACLs from the prerequisites
-above. For CouchDB and Mindwtr, preserve those ACLs on restored files before
-starting services. Restore named volumes with `docker volume create` + copy,
-and start the services. Each zip contains a `backup-manifest.txt` declaring
-exactly what it covers.
+state back (re-apply ownership where the service is picky — CouchDB needs
+`chown -R 5984:5984 /mnt/halfToshibaB/docker/data/couchdb/{data,etc}`), restore named volumes with
+`docker volume create` + copy, and start the services. Each zip contains a
+`backup-manifest.txt` declaring exactly what it covers.
 
-The general host replicates the backup destination to Google Drive via the
-hourly bisync documented in `general/rclone-sync.yaml`. Its lock directory is
-on the same local filesystem but outside the synced `Server Backups` subtree.
+The media host replicates its "Server Backups" directory to Google Drive via
+the hourly bisync below. Off-box replication for the general host's backup
+destination remains a separate setup.
 
 ### Google Drive sync
 
-These host-level syncs are documented in their respective host records; the general
-host's backup bisync is described in `general/rclone-sync.yaml`, while the media
-sync units are documented below:
+The `gdrive:` remote (`~/.config/rclone/rclone.conf`) backs two host-level
+syncs. Their systemd units live in `systemd/media/` and are installed manually —
+they run on the host, not in containers:
 
 - `rclone-gdrive-bisync` — Drive ↔ `/bigdisk/google-drive`, hourly timer.
   Replaced the former every-minute one-way pull. The initial resync (Drive
@@ -396,25 +372,15 @@ cd general && docker compose stop couchdb
 docker compose start couchdb
 ```
 
-To restore: stop the service, restore both directories, then restore the
-`docker-manager` ownership and UID 5984 ACLs described under [Configuration and
-host prerequisites](#configuration-and-host-prerequisites). Preserve the ACLs
-when copying the backup back; do not use a world-accessible mode such as
-`chmod a+rwX`. Restore `data` and `etc` as a pair so the backup stays
-self-consistent.
+To restore: stop the service, restore both directories, re-apply ownership (`chown -R 5984:5984 /mnt/halfToshibaB/docker/data/couchdb/{data,etc}`), and start the service again. Restore `data` and `etc` as a pair so the backup stays self-consistent.
 
 ## Mindwtr Cloud deployment
 
-`mindwtr-cloud` runs as UID/GID 1000 and writes its state to `/app/cloud_data`.
-Create the bind-mounted directory with `docker-manager` ownership and an ACL for
-UID 1000 as described under [Configuration and host
-prerequisites](#configuration-and-host-prerequisites); do not grant access to
-all local users.
+`mindwtr-cloud` runs as UID/GID 1000 and writes its state to `/app/cloud_data`, so the bind-mounted directory must exist and be writable by that ID *before* the first start (1000 = the unprivileged "user 1000" that other media containers share on this host; give ownership to 1000:1000 directly, no world-accessible mode needed):
 
 ```sh
 mkdir -p /mnt/halfToshibaB/docker/data/mindwtr
-chown docker-manager:docker-manager /mnt/halfToshibaB/docker/data/mindwtr
-chmod a+rwX /mnt/halfToshibaB/docker/data/mindwtr
+chown 1000:1000 /mnt/halfToshibaB/docker/data/mindwtr
 ```
 
 Without this the container exits with `cloud data directory is not writable` and restarts in a loop. Set `MINDWTR_CLOUD_AUTH_TOKENS` in `general/.env` (generate with `openssl rand -hex 32`), then bring up the service. It publishes no host port; Nginx Proxy Manager reaches it as `mindwtr-cloud:8787` over the shared `mindwtr-net` network, so the proxy host must use that hostname and must not append `/v1` to the base URL configured in the apps.
@@ -470,3 +436,12 @@ validates
 *configuration*, not runtime behavior — it would not catch something like a
 crash-looping container. See `.env.example` in each stack directory for the
 required variables.
+
+## Container naming
+
+Every service sets an explicit `container_name`, which makes it permanently
+single-instance (Compose refuses to scale a service that has one) and keeps
+the name stable across recreations. New services should use the host-prefixed
+form `<host>-<service>` (e.g. `general-mosquitto`,
+`media-autoheal-socket-proxy`); some older services keep short bare names
+(`plex`, `autoheal`), which are grandfathered.

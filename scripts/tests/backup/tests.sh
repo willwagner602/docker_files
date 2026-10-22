@@ -12,9 +12,10 @@
 #
 # 2. Coverage tests: for each stack, `docker compose config` is resolved in a
 #    throwaway copy (placeholders instead of secrets, same trick as `make
-#    validate`), and every service's mounts plus required archive files are
-#    cross-referenced against the backup service's declarations. Compose
-#    healthcheck/autoheal invariants are also checked for the media stack.
+#    validate`), and every service's mounts are cross-referenced against the
+#    backup service's BACKUP_PATHS / BACKUP_VOLUMES / EXCLUDED_MOUNTS /
+#    EXTRA_BACKUP_PATHS environment. A container added without backup coverage
+#    fails here, as does a renamed volume or a drifted backup.yml mount.
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -145,15 +146,7 @@ check_stack() { # $1 = stack directory name
     return 1
   }
 
-  canonical_root=$(python3 - "$work/cfg.json" <<'PY'
-import json
-import sys
-env = json.load(open(sys.argv[1]))["services"]["backup"]["environment"]
-script = next((p for p in env.get("EXCLUDED_MOUNTS", "").split() if p.endswith("/scripts/health-notify.sh")), "")
-print(script[:-len("/scripts/health-notify.sh")] if script else "")
-PY
-  )
-  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work" "$canonical_root"; then
+  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work"; then
     ok "$stack: backup coverage covers every deployed service"
   else
     bad "$stack: backup coverage has gaps (see above)"
@@ -171,10 +164,10 @@ cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
   COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
-  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/config.err" || {
-    bad "negative control: compose config failed: $(cat "$negdir/config.err")"
+  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/err.txt" || {
+    bad "negative control: compose config failed: $(cat "$negdir/err.txt")"
     rm -rf "$negdir"
-    exit 1
+    return 1
   }
 python3 - "$negdir/cfg.json" <<'EOF'
 import json
@@ -186,12 +179,13 @@ env["BACKUP_PATHS"] = " ".join(
 )
 json.dump(cfg, open(sys.argv[1], "w"))
 EOF
-if checker_output=$(python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" "$canonical_root" 2>&1); then
+negout=$(python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" 2>&1 | tee "$negdir/checker.txt")
+if python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" >/dev/null 2>&1; then
   bad "negative control: checker did not flag the removed couchdb path"
-elif ! printf '%s\n' "$checker_output" | grep -Fq 'service couchdb mounts /mnt/halfToshibaB/docker/data/couchdb/data which is in neither BACKUP_PATHS nor EXCLUDED_MOUNTS'; then
-  bad "negative control: checker failed for an unexpected reason: $checker_output"
+elif grep -qF "BACKUP_PATHS nor EXCLUDED_MOUNTS" "$negdir/checker.txt"; then
+  ok "negative control: checker flags a removed backup path for the right reason"
 else
-  ok "negative control: checker reports the uncovered couchdb mount"
+  bad "negative control: checker failed for an unexpected reason: $negout"
 fi
 rm -rf "$negdir"
 

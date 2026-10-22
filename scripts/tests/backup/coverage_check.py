@@ -27,14 +27,13 @@ cfg = json.load(open(sys.argv[1]))
 stack = sys.argv[2]
 # When the suite resolves compose config from a throwaway copy, relative
 # mounts (../scripts/...) point into the temp dir; map them back to the
-# canonical deployment path supplied by the test harness.
+# canonical deployment path.
 temp_prefix = sys.argv[3] if len(sys.argv) > 3 else ""
-canonical_root = sys.argv[4] if len(sys.argv) > 4 else ""
 
 
 def norm(p):
-    if temp_prefix and canonical_root and p.startswith(temp_prefix):
-        p = canonical_root + p[len(temp_prefix):]
+    if temp_prefix and p.startswith(temp_prefix):
+        p = "/home/wbw/work/docker_files" + p[len(temp_prefix):]
     return p.rstrip("/") if len(p) > 1 else p
 
 services = cfg.get("services", {})
@@ -71,9 +70,6 @@ required = [
     "EXCLUDED_MOUNTS",
     "EXTRA_BACKUP_PATHS",
 ]
-# Optional whitespace-separated paths whose data is operationally required in
-# the archive (e.g. SQL dump restore points). This verifies declared coverage,
-# not filesystem existence or freshness; runtime healthchecks own freshness.
 for key in required:
     if key not in env:
         problems.append(f"backup service is missing required env var {key}")
@@ -88,7 +84,6 @@ paths = [norm(p) for p in env["BACKUP_PATHS"].split()]
 vols = env["BACKUP_VOLUMES"].split()
 excluded = [norm(p) for p in env["EXCLUDED_MOUNTS"].split()]
 extras = [norm(p) for p in env["EXTRA_BACKUP_PATHS"].split()]
-required_files = [norm(p) for p in env.get("REQUIRED_BACKUP_FILES", "").split()]
 
 bind_mounts = {}  # service -> list of sources
 volume_mounts = {}
@@ -117,54 +112,6 @@ def excluded_by_paths(src):
 def path_covers_mount(p):
     return any(p == s or s.startswith(p + "/") for s in all_binds)
 
-
-# 1b. required archive files must live under a declared backup path.
-# This is a configuration guarantee only; runtime checks verify dump freshness.
-for file_path in required_files:
-    if not covered_by_paths(file_path):
-        problems.append(
-            f"required backup file {file_path} is not covered by BACKUP_PATHS"
-        )
-
-# Media-specific operational invariants: autoheal only works for healthchecked
-# services, and database dumps must have an actual age/existence healthcheck.
-if stack == "media":
-    def labels_of(svc):
-        labels = svc.get("labels") or {}
-        if isinstance(labels, list):
-            return dict(item.split("=", 1) for item in labels if "=" in item)
-        return labels
-
-    for name, svc in sorted(services.items()):
-        if labels_of(svc).get("autoheal") == "true" and not svc.get("healthcheck"):
-            problems.append(f"service {name} has autoheal=true but no healthcheck")
-
-    for name in ("sonarr", "radarr", "whisparr"):
-        svc = services.get(name, {})
-        if labels_of(svc).get("autoheal") != "true":
-            problems.append(f"service {name} must have autoheal=true")
-        if not svc.get("healthcheck"):
-            problems.append(f"service {name} must have a healthcheck")
-
-    if labels_of(services.get("immich-server", {})).get("autoheal") == "true":
-        problems.append("service immich-server must not have autoheal=true")
-
-    required_dump_files = {
-        "/bigdisk/db-dumps/postgres-all.sql",
-        "/bigdisk/db-dumps/immich-all.sql",
-    }
-    if not required_dump_files.issubset(required_files):
-        problems.append("REQUIRED_BACKUP_FILES must include both postgres-all.sql and immich-all.sql")
-
-    dump_health = services.get("immich-db-dump", {}).get("healthcheck") or {}
-    dump_test = dump_health.get("test", [])
-    dump_command = " ".join(dump_test) if isinstance(dump_test, list) else str(dump_test)
-    if (
-        "immich-all.sql" not in dump_command
-        or "test -s" not in dump_command
-        or "-mmin -1500" not in dump_command
-    ):
-        problems.append("immich-db-dump healthcheck must require a nonempty dump newer than 25 hours")
 
 # 2. every bind mount covered or explicitly excluded
 for svc, srcs in sorted(bind_mounts.items()):

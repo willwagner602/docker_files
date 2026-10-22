@@ -49,7 +49,7 @@ KEEP_MONTHLY=${KEEP_MONTHLY:-9}
 # instead. NOTE: patterns must NOT start with "*/" — zip's matcher needs * to
 # consume at least one character, so a leading "*/" never matches a relative
 # archive path.
-EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *ipc-socket}
+EXCLUDES=${EXCLUDES:-*home-assistant_v2.db-wal *home-assistant_v2.db-shm *etc-pihole/*-wal *etc-pihole/*-shm *ipc-socket}
 # *ipc-socket: runtime IPC sockets (e.g. qBittorrent's config/config/ipc-socket)
 # are not backup state; cp -a preserves them into staging and zip fails to
 # read them ("zip warning: No such device or address").
