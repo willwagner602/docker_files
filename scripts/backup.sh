@@ -41,8 +41,9 @@ KEEP_WEEKLY=${KEEP_WEEKLY:-11}
 KEEP_MONTHLY=${KEEP_MONTHLY:-9}
 # Defaults used by stacks that do not set EXCLUDES (currently media). A stack
 # that sets EXCLUDES replaces this entire list; values are not merged.
-# Patterns passed to zip -x. SQLite main databases are re-copied through
-# sqlite3 .backup during staging (sqlite_restage below), which folds any WAL
+# Patterns passed to zip -x. SQLite main databases are re-copied during
+# staging (sqlite_restage below: a consistent snapshot via sqlite3 -readonly
+# and VACUUM INTO), which folds any WAL
 # frames in, so the WAL/SHM side files are redundant in the archive and
 # excluded everywhere; media's Postgres databases go through pg_dump exports
 # instead. NOTE: patterns must NOT start with "*/" — zip's matcher needs * to
@@ -70,8 +71,9 @@ usage() {
 # .backup command, replacing the cp -a output with a consistent snapshot read
 # from the live source. A plain cp of a hot SQLite database can tear across a
 # concurrent write and misses committed WAL frames until the next checkpoint;
-# .backup takes a proper snapshot through SQLite's own library while the app
-# keeps running. Sources stay read-only. Failures are loud: an inconsistent
+# a consistent snapshot through SQLite's own library (VACUUM INTO from a
+# -readonly connection) is taken while the app keeps running. Sources stay
+# read-only. Failures are loud: an inconsistent
 # database in the archive is worse than a missing archive, so any SQLite
 # database that cannot be snapshotted fails the whole backup run.
 sqlite_restage() (
@@ -79,6 +81,13 @@ sqlite_restage() (
   staged_root=$2
   list=$(mktemp "${TMPDIR:-/tmp}/sqlite-restage.XXXXXX")
   trap 'rm -f "$list"' EXIT
+  # Known limitation: a filename containing an embedded newline cannot be
+  # expressed by this one-path-per-line loop and would be skipped silently.
+  # No such file has ever been observed in the staged trees (app-owned names:
+  # plex, arr, frigate, pihole), and the POSIX toolset on the Alpine backup
+  # image offers no NUL-aware line consumer to detect one portably — the
+  # known-empty guard costs more than it protects.
+
   find "$staged_root" -type f > "$list"
   status=0
   while IFS= read -r staged; do
@@ -92,11 +101,21 @@ sqlite_restage() (
     rel=${staged#"$staged_root"}
     live="$src_root$rel"
     rm -f "$staged"
-    # .timeout rides out brief writer locks; mode=ro keeps the read-only mount
-    # contract (an open that wants to recover a crashed writer's WAL fails
-    # here, loudly, rather than mutating live state).
-    if ! sqlite3 -cmd ".timeout 10000" "file:$live?mode=ro" ".backup '$staged'"; then
-      echo "ERROR: sqlite3 .backup failed for $live; not archiving a possibly inconsistent copy" >&2
+    # Source path goes as a plain argv (no file: URI): SQLite's URI parser
+    # treats ?/#/% as metacharacters, so an odd filename could change the
+    # parse. -readonly keeps the read-only contract (an open that would want
+    # to recover a crashed writer's WAL fails here, loudly, rather than
+    # mutating live state); .timeout rides out brief writer locks.
+    # Target goes through VACUUM INTO with SQL escaping ('' doubling), not
+    # the .backup dot-command: the dot-command's quoting breaks on the
+    # apostrophes and spaces these media trees' names contain, which either
+    # aborted the run or silently archived an empty database. VACUUM INTO
+    # produces the same full consistent snapshot (verified against a live
+    # WAL writer) and takes an SQL string, where ordinary escaping applies.
+    # It requires the target not to exist, which the rm above guarantees.
+    staged_sql=$(printf "%s" "$staged" | sed "s/'/''/g")
+    if ! sqlite3 -cmd ".timeout 10000" -readonly "$live" "VACUUM INTO '$staged_sql'"; then
+      echo "ERROR: sqlite3 VACUUM INTO failed for $live; not archiving a possibly inconsistent copy" >&2
       status=1
       continue
     fi
