@@ -1,0 +1,7 @@
+[Unit]
+Description=Bisync Slowby/Google Drive Photos folder with Google Drive (every minute)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/gdrive-sync-photos.sh

@@ -7,7 +7,8 @@
 # Upstream: https://github.com/bardesss/arr-mcp
 services:
   arr-mcp:
-    image: ghcr.io/bardesss/arr-mcp:1.44.0
+    # Digest pinned 2026-10-13; update deliberately with the image tag.
+    image: ghcr.io/bardesss/arr-mcp:1.44.0@sha256:f9ac224023d7530456304ae81199c94a109ce5bef8de76860d7c3535b456f96c
     container_name: arr-mcp
     restart: unless-stopped
     logging:

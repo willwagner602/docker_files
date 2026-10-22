@@ -1,6 +1,8 @@
+# Pin executable versions: stdio children run inside Polytoken's process trust domain.
+# Pinned 2026-10-13; bump deliberately.
 mcp_servers:
   playwright:
     transport: stdio
     command: npx
-    args: ["-y", "@playwright/mcp@latest"]
+    args: ["-y", "@playwright/mcp@0.0.83"]
     default_enabled: false

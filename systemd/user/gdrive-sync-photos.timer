@@ -1,0 +1,10 @@
+[Unit]
+Description=Run gdrive-sync-photos every minute (no-ops if drive isn't mounted)
+
+[Timer]
+OnCalendar=*:*:00
+AccuracySec=1s
+Persistent=false
+
+[Install]
+WantedBy=timers.target
