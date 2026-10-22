@@ -469,3 +469,12 @@ validates
 *configuration*, not runtime behavior — it would not catch something like a
 crash-looping container. See `.env.example` in each stack directory for the
 required variables.
+
+## Container naming
+
+Every service sets an explicit `container_name`, which makes it permanently
+single-instance (Compose refuses to scale a service that has one) and keeps
+the name stable across recreations. New services should use the host-prefixed
+form `<host>-<service>` (e.g. `general-mosquitto`,
+`media-autoheal-socket-proxy`); some older services keep short bare names
+(`plex`, `autoheal`), which are grandfathered.
