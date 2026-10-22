@@ -164,7 +164,11 @@ cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
   COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
-  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json"
+  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/err.txt" || {
+    bad "negative control: compose config failed: $(cat "$negdir/err.txt")"
+    rm -rf "$negdir"
+    return 1
+  }
 python3 - "$negdir/cfg.json" <<'EOF'
 import json
 import sys
@@ -175,10 +179,13 @@ env["BACKUP_PATHS"] = " ".join(
 )
 json.dump(cfg, open(sys.argv[1], "w"))
 EOF
+negout=$(python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" 2>&1 | tee "$negdir/checker.txt")
 if python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" >/dev/null 2>&1; then
   bad "negative control: checker did not flag the removed couchdb path"
+elif grep -qF "BACKUP_PATHS nor EXCLUDED_MOUNTS" "$negdir/checker.txt"; then
+  ok "negative control: checker flags a removed backup path for the right reason"
 else
-  ok "negative control: checker flags a removed backup path"
+  bad "negative control: checker failed for an unexpected reason: $negout"
 fi
 rm -rf "$negdir"
 

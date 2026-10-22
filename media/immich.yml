@@ -77,6 +77,19 @@ services:
     image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0@sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
     container_name: immich-db-dump
     restart: unless-stopped
+    # This container has no local postgres: it only runs daily pg_dumpall
+    # against immich-postgres, so the image's built-in healthcheck does not
+    # apply — check the completed export instead. A missing, empty, or
+    # older-than-25-hours dump marks this service unhealthy for health-notify.
+    # (cb51655 disabled the image's bogus check but kept that promise via the
+    # backup zip tests; those were slimmed in e627d3e, so freshness detection
+    # lives here again.)
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /dumps/immich-all.sql && find /dumps/immich-all.sql -mmin -1500 -print -quit | grep -q ."]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 5m
     depends_on:
       immich-postgres:
         condition: service_healthy
