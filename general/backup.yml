@@ -41,6 +41,8 @@ services:
       #     with the komodo-mongo-* volumes that are backed up directly.
       - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo
       # Backup paths that no service mounts (repo copy for restorability).
+      # The tracked job-digest config and the test-support scripts ride in via
+      # the repo copy; their git history is the backup.
       - EXTRA_BACKUP_PATHS=/home/wbw/work/job-search-tooling /home/wbw/work/docker_files
       # Exclude transient SQLite sidecars and obsolete/corrupt HA database files.
       # HA snapshots and rotated logs are disposable; Pi-hole's FTL query DB is

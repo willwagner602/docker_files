@@ -11,6 +11,10 @@ services:
         max-file: "3"
     environment:
       TZ: America/Los_Angeles
+      # Classification runs through TypeSafe's System One API (Jev); the
+      # provider/model mapping lives in the mounted config file instead of the
+      # image-baked config.json so image pulls don't revert the choice.
+      JOB_DIGEST_CONFIG: /app/config-external.json
       JOB_DIGEST_DIR: /app/.job_digest
       JOB_DIGEST_SECRETS: /app/secrets.json
       JOB_DIGEST_HOST: 0.0.0.0
@@ -19,4 +23,6 @@ services:
       - "8765:8765"
     volumes:
       - /mnt/halfToshibaB/docker/data/job-digest/secrets.json:/app/secrets.json:ro
+      # Config overrides the image-baked config.json (path set via JOB_DIGEST_CONFIG).
+      - ./job-digest-config.json:/app/config-external.json:ro
       - /mnt/halfToshibaB/docker/data/job-digest/state:/app/.job_digest
