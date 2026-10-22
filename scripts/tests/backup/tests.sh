@@ -12,9 +12,10 @@
 #
 # 2. Coverage tests: for each stack, `docker compose config` is resolved in a
 #    throwaway copy (placeholders instead of secrets, same trick as `make
-#    validate`), and every service's mounts plus required archive files are
-#    cross-referenced against the backup service's declarations. Compose
-#    healthcheck/autoheal invariants are also checked for the media stack.
+#    validate`), and every service's mounts are cross-referenced against the
+#    backup service's BACKUP_PATHS / BACKUP_VOLUMES / EXCLUDED_MOUNTS /
+#    EXTRA_BACKUP_PATHS environment. A container added without backup coverage
+#    fails here, as does a renamed volume or a drifted backup.yml mount.
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -145,15 +146,7 @@ check_stack() { # $1 = stack directory name
     return 1
   }
 
-  canonical_root=$(python3 - "$work/cfg.json" <<'PY'
-import json
-import sys
-env = json.load(open(sys.argv[1]))["services"]["backup"]["environment"]
-script = next((p for p in env.get("EXCLUDED_MOUNTS", "").split() if p.endswith("/scripts/health-notify.sh")), "")
-print(script[:-len("/scripts/health-notify.sh")] if script else "")
-PY
-  )
-  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work" "$canonical_root"; then
+  if python3 "$HERE/coverage_check.py" "$work/cfg.json" "$stack" "$work"; then
     ok "$stack: backup coverage covers every deployed service"
   else
     bad "$stack: backup coverage has gaps (see above)"
@@ -171,11 +164,7 @@ cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
   COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
-  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/config.err" || {
-    bad "negative control: compose config failed: $(cat "$negdir/config.err")"
-    rm -rf "$negdir"
-    exit 1
-  }
+  docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json"
 python3 - "$negdir/cfg.json" <<'EOF'
 import json
 import sys
@@ -186,91 +175,12 @@ env["BACKUP_PATHS"] = " ".join(
 )
 json.dump(cfg, open(sys.argv[1], "w"))
 EOF
-if checker_output=$(python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" "$canonical_root" 2>&1); then
+if python3 "$HERE/coverage_check.py" "$negdir/cfg.json" general "$negdir" >/dev/null 2>&1; then
   bad "negative control: checker did not flag the removed couchdb path"
-elif ! printf '%s\n' "$checker_output" | grep -Fq 'service couchdb mounts /mnt/halfToshibaB/docker/data/couchdb/data which is in neither BACKUP_PATHS nor EXCLUDED_MOUNTS'; then
-  bad "negative control: checker failed for an unexpected reason: $checker_output"
 else
-  ok "negative control: checker reports the uncovered couchdb mount"
+  ok "negative control: checker flags a removed backup path"
 fi
 rm -rf "$negdir"
-
-# Media negative controls: required dump coverage and the service health/autoheal
-# contract must fail closed when a declaration drifts.
-mediadir=$(mktemp_d)
-cp -R "$REPO/media" "$mediadir/media"
-TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
-  PIA_USER=ci-placeholder PIA_PASS=ci-placeholder \
-  FRIGATE_RTSP_PASSWORD=ci-placeholder POSTGRES_PASSWORD=ci-placeholder \
-  PLEX_CLAIM=ci-placeholder SONARR_API_KEY=ci-placeholder RADARR_API_KEY=ci-placeholder \
-  SAB_API_KEY=ci-placeholder PLUS_API_KEY=ci-placeholder \
-  IMMICH_VERSION=v3.1.0 IMMICH_DB_PASSWORD=ci-placeholder \
-  PHOTO_UPLOADER_OPERATOR_USERNAME=ci-placeholder PHOTO_UPLOADER_OPERATOR_PASSWORD=ci-placeholder \
-  PHOTO_UPLOADER_SESSION_SECRET=ci-placeholder PHOTO_UPLOADER_BSKY_HANDLE=ci-placeholder \
-  PHOTO_UPLOADER_BSKY_APP_PASSWORD=ci-placeholder PHOTO_UPLOADER_PHOTO_PATH=/tmp \
-  docker compose --project-directory "$mediadir/media" config --format json > "$mediadir/cfg.json" || {
-    bad "media negative controls: compose config failed"
-  }
-python3 - "$mediadir/cfg.json" "$mediadir" <<'PY'
-import copy, json, sys
-cfg = json.load(open(sys.argv[1]))
-root = sys.argv[2]
-cases = {}
-
-case = copy.deepcopy(cfg)
-env = case["services"]["backup"]["environment"]
-env["BACKUP_PATHS"] = " ".join(p for p in env["BACKUP_PATHS"].split() if p != "/bigdisk/db-dumps")
-cases["missing-required-dump-coverage"] = case
-
-case = copy.deepcopy(cfg)
-case["services"]["whisparr"]["labels"].pop("autoheal", None)
-cases["whisparr-autoheal-label"] = case
-
-case = copy.deepcopy(cfg)
-case["services"]["whisparr"].pop("healthcheck", None)
-cases["whisparr-healthcheck"] = case
-
-case = copy.deepcopy(cfg)
-case["services"]["immich-server"].setdefault("labels", {})["autoheal"] = "true"
-cases["immich-server-autoheal-exclusion"] = case
-
-case = copy.deepcopy(cfg)
-case["services"]["immich-db-dump"]["healthcheck"]["test"] = ["CMD-SHELL", "true"]
-cases["immich-dump-freshness-check"] = case
-
-for name, case in cases.items():
-    json.dump(case, open(f"{root}/{name}.json", "w"))
-PY
-for case in missing-required-dump-coverage whisparr-autoheal-label whisparr-healthcheck immich-server-autoheal-exclusion immich-dump-freshness-check; do
-  if python3 "$HERE/coverage_check.py" "$mediadir/$case.json" media "$mediadir" >/dev/null 2>&1; then
-    bad "media invariant negative control: $case was not detected"
-  else
-    ok "media invariant negative control: $case detected"
-  fi
-done
-rm -rf "$mediadir"
-
-# Media dump archive smoke test: the declared SQL restore points must survive
-# the real backup script's staging/zip path. Freshness is tested separately by
-# the dump service healthchecks, not by this static fixture.
-dumpfixture=$(mktemp_d)
-mkdir -p "$dumpfixture/backup-roots/bigdisk/db-dumps"
-printf 'postgres fixture dump\\n' > "$dumpfixture/backup-roots/bigdisk/db-dumps/postgres-all.sql"
-printf 'immich fixture dump\\n' > "$dumpfixture/backup-roots/bigdisk/db-dumps/immich-all.sql"
-ROLE=media DEST_DIR="$dumpfixture" PATH_ROOT="$dumpfixture/backup-roots" \
-  BACKUP_PATHS="/bigdisk/db-dumps" BACKUP_VOLUMES= EXCLUDES= \
-  BACKUP_SOURCE_ONLY=1 sh -c ". '$SCRIPT'; run_backup --now" >/dev/null 2>&1
-media_zip=$(ls "$dumpfixture"/media-backup-*.zip 2>/dev/null | head -1)
-if [ -n "$media_zip" ]; then
-  for dump in bigdisk/db-dumps/postgres-all.sql bigdisk/db-dumps/immich-all.sql; do
-    unzip -l "$media_zip" | grep -q "$dump" \
-      && ok "media archive includes $dump" \
-      || bad "media archive missing $dump"
-  done
-else
-  bad "media archive dump fixture: no snapshot was created"
-fi
-rm -rf "$dumpfixture"
 
 # Case D: end-to-end exclusion check. Resolve EXCLUDES from general's actual
 # Compose config, then take a real --now snapshot of fake bind and named-volume

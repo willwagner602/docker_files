@@ -5,9 +5,9 @@
 # covered fails `make test` and CI.
 #
 # All protected state is mounted READ-ONLY — this container needs no docker
-# socket. This stack's hourly bisync now replicates Server Backups off-box; see
-# general/rclone-sync.yaml for the host-level job. The run lock must remain
-# outside that sync subtree.
+# socket. The zip lands in the Google Drive "Server Backups" directory
+# (locally synced at /mnt/smallHDD/google-drive); rclone push off-box is a
+# documented follow-up in README.md.
 services:
   backup:
     image: docker:29-cli
@@ -29,7 +29,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/mindwtr /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /home/wbw/work/job-search-tooling
+      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/mindwtr /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
       # Named volumes to back up (logical compose names).
       - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys
       # Service mounts deliberately NOT backed up, with the reason:
@@ -38,9 +38,9 @@ services:
       #     in this monitoring-only setup.
       #   /etc/komodo/backups — Komodo Core's own dated DB dumps; redundant
       #     with the komodo-mongo-* volumes that are backed up directly.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo /home/wbw/work/docker_files/scripts/health-notify.sh
-      # Additional paths with backup coverage that are not mounted by a service.
-      - EXTRA_BACKUP_PATHS=/home/wbw/work/job-search-tooling
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo
+      # Backup paths that no service mounts (repo copy for restorability).
+      - EXTRA_BACKUP_PATHS=/home/wbw/work/job-search-tooling /home/wbw/work/docker_files
       # Exclude transient SQLite sidecars and obsolete/corrupt HA database files.
       # HA snapshots and rotated logs are disposable; Pi-hole's FTL query DB is
       # history only (gravity.db retains the blocklist state).
@@ -75,6 +75,7 @@ services:
       - /mnt/halfToshibaB/docker/data/job-digest/secrets.json:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/secrets.json:ro
       - /mnt/halfToshibaB/docker/data/health-notify/general:/backup-roots/mnt/halfToshibaB/docker/data/health-notify/general:ro
       - /home/wbw/work/job-search-tooling:/backup-roots/home/wbw/work/job-search-tooling:ro
+      - /home/wbw/work/docker_files:/backup-roots/home/wbw/work/docker_files:ro
       # --- protected named volumes (read-only) ---
       - mosquitto-data:/volume-roots/mosquitto-data:ro
       - mosquitto-logs:/volume-roots/mosquitto-logs:ro
