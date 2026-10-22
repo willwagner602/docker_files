@@ -377,7 +377,7 @@ sudo systemctl enable --now rclone-gdrive-bisync.timer rclone-immich-push.timer
 The desktop machine (not this server) runs **two-way** bisync of its
 `Google Drive` folder against the same Drive — separate jobs, separate
 rclone remote (`google drive:`), systemd **user** units, plus a
-staleness alarm that fires if a job has not succeeded in at least 6 h
+staleness alarm that fires if a job has not succeeded in ≥6 h
 (checked every 60 s), sounding only between 10:00 and 20:00. “Success” means
 the bisync command exited successfully and its script wrote the job's marker.
 Scripts live in

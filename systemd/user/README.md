@@ -15,7 +15,7 @@ both current.
 
 | Job | Paths | Schedule | Log |
 |---|---|---|---|
-| `gdrive-sync` (whole tree) | `/run/media/wbw/Slowby/Google Drive` ↔ `google drive:` | hourly at :00 | `~/.local/state/gdrive-sync/sync.log` |
+| `gdrive-sync` (whole tree) | `/run/media/wbw/Slowby/Google Drive` ↔ `google drive:` | every 10 min | `~/.local/state/gdrive-sync/sync.log` |
 | `gdrive-sync-photos` (Photos only) | `.../Google Drive/Photos` ↔ `google drive:Photos` | every minute | `~/.local/state/gdrive-sync/photos-sync.log` |
 | `gdrive-sync-alert` (watcher) | staleness check (both jobs) | always on | `journalctl --user -u gdrive-sync-alert` |
 
@@ -81,8 +81,10 @@ It also requires `/run/media/wbw/Slowby` to exist as a host-appropriateness
 check for this desktop. `GDRIVE_INSTALL=1` overrides only that mount check, not
 the required confirmation. Install the required `~/.local/bin/rclone` v1.75.1
 separately before enabling these units. `make check-gdrive` compares the
-installed scripts, units, and filters with the repository; it is standalone and
-is not part of `make check` or the pre-push gate.
+installed scripts, units, and filters with the repository. On hosts that
+have installed copies it runs as part of `make check` (and therefore the
+pre-push hook); on CI hosts, which have none, it is skipped. It can also
+be run standalone at any time.
 
 ```sh
 cd ~/work/docker_files
@@ -158,3 +160,7 @@ cat ~/.local/state/gdrive-sync/last-sync.ok ~/.local/state/gdrive-sync/last-sync
   intended to handle interruptions without it in the common case. Photos healthy.
 - 2026-10-12: scripts and units copied into this repo (`scripts/` +
   `systemd/user/`) with `systemd/user/README.md` as the setup doc.
+- Cadence tuning since the 2025-09-25 "whole@hourly" entry above: hourly →
+  every two hours (2026-10-20) → every 15 minutes → every 10 minutes
+  (2026-10-21). The authoritative schedule is
+  `gdrive-sync.timer`'s `OnCalendar`; also see `desktop/rclone-config.md`.
