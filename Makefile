@@ -2,7 +2,8 @@
 #
 #   make test       run the shell test suite for scripts/health-notify.sh
 #   make validate   strict-interpolate the compose stacks (as CI does)
-#   make check      both of the above
+#   make check      both of the above (plus the gdrive drift check on hosts
+#                   that have installed copies — CI, which has none, skips it)
 #   make hooks      install the pre-push hook into .git/hooks (once per clone)
 #
 # `validate` mirrors what CI runs: it copies each stack's .env.example to .env
@@ -19,7 +20,7 @@ help:
 	@echo "Targets:"
 	@echo "  make test      Run the health-notify.sh and backup shell test suites"
 	@echo "  make validate  Strict-interpolate the compose stacks (general, media, desktop)"
-	@echo "  make check     test + validate (what CI runs)"
+	@echo "  make check     test + validate, plus the gdrive drift check on hosts with installed copies (CI skips that leg)"
 	@echo "  make hooks     Install the pre-push hook into .git/hooks"
 
 test:
@@ -45,6 +46,7 @@ validate:
 	printf '\nAll compose stacks validated.\n'
 
 check: test validate
+	@if [ -f "$$HOME/.local/bin/gdrive-sync.sh" ]; then make check-gdrive; fi
 
 # This target writes into the user's live bin/config directories. Require a
 # deliberate confirmation every time; the mount guard is an additional check.
@@ -63,7 +65,8 @@ install-gdrive:
 	install -Dm 644 systemd/user/gdrive-sync-alert.service ~/.config/systemd/user/; \
 	install -Dm 644 systemd/user/gdrive-sync-filters.txt ~/.config/rclone/gdrive-sync-filters.txt
 
-# Report drift only; intentionally not part of make check / the pre-push gate.
+# Report drift. Runs as part of make check on hosts that have installed
+# copies (skipped on CI, which has none); can also be run standalone.
 check-gdrive:
 	@set -eu; failed=0; \
 	for f in gdrive-sync.sh gdrive-sync-photos.sh gdrive-sync-alert.sh; do \

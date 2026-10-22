@@ -18,7 +18,7 @@ case "$1" in
         ;;
       *Health.Status*)
         case "$name" in
-          db) printf 'unhealthy' ;;
+          db|general-mosquitto) printf 'unhealthy' ;;
           *) printf '' ;;
         esac
         ;;
