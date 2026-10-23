@@ -16,7 +16,7 @@
 
 services:
   mdns-reflector:
-    image: flungo/avahi:latest # pin a digest after first pull
+    image: flungo/avahi@sha256:99e7c07662c9cb5ab450d8ea4d39cf25d4aadbb98e99b1ebcf16d006682a5cfc
     container_name: mdns-reflector
     restart: unless-stopped
     # flungo/avahi needs a writable /var/run for its pid/state dir; tmpfs
