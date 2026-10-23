@@ -133,6 +133,9 @@ check_stack() { # $1 = stack directory name
   if [ -f "$work/$stack/.env.example" ]; then
     cp "$work/$stack/.env.example" "$work/$stack/.env"
   fi
+  if [ -f "$work/$stack/unpoller.env.example" ]; then
+    cp "$work/$stack/unpoller.env.example" "$work/$stack/unpoller.env"
+  fi
 
   # Required variables for stacks whose .env.example does not cover them
   # (mirrors the placeholder values CI uses for `docker compose config`).
@@ -162,6 +165,7 @@ check_stack media
 negdir=$(mktemp_d)
 cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
+if [ -f "$negdir/general/unpoller.env.example" ]; then cp "$negdir/general/unpoller.env.example" "$negdir/general/unpoller.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
   COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
   docker compose --project-directory "$negdir/general" config --format json > "$negdir/cfg.json" 2>"$negdir/err.txt" || {
@@ -366,6 +370,7 @@ mkdir -p "$volfake/diagnostic.data"
 negdir=$(mktemp_d)
 cp -R "$REPO/general" "$negdir/general"
 if [ -f "$negdir/general/.env.example" ]; then cp "$negdir/general/.env.example" "$negdir/general/.env"; fi
+if [ -f "$negdir/general/unpoller.env.example" ]; then cp "$negdir/general/unpoller.env.example" "$negdir/general/unpoller.env"; fi
 TELEGRAM_BOT_TOKEN=ci-placeholder TELEGRAM_CHAT_ID=ci-placeholder \
 COUCHDB_USER=ci-placeholder COUCHDB_PASSWORD=ci-placeholder \
 docker compose --project-directory "$negdir/general" config --format json > "$dirD/general-config.json"

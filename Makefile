@@ -39,6 +39,9 @@ validate:
 	  if [ -f "$$stack/.env.example" ]; then \
 	    cp "$$stack/.env.example" "$$work/$$stack/.env"; \
 	  fi; \
+	  if [ -f "$$stack/unpoller.env.example" ]; then \
+	    cp "$$stack/unpoller.env.example" "$$work/$$stack/unpoller.env"; \
+	  fi; \
 	  ( cd "$$work/$$stack" && docker compose config -q ) \
 	    && printf '  OK  %s\n' "$$stack" \
 	    || { printf '  FAIL  %s\n' "$$stack"; exit 1; }; \
