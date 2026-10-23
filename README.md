@@ -48,7 +48,6 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | `mosquitto.yml` | Mosquitto | Independent service with persistent data and configuration. |
 | `job-digest.yml` | Job Digest | Independent service using the `ghcr.io/willwagner602/job-search-tooling` image; state persists in the `/mnt/halfToshibaB/docker/data/job-digest/state` bind mount. |
 | `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/mnt/halfToshibaB/docker/data/couchdb`. |
-| `mindwtr.yml` | Mindwtr Cloud | Sync server for the Mindwtr desktop and mobile apps; published only to Nginx Proxy Manager over a dedicated `mindwtr-net` Docker network, with data bind-mounted under `/mnt/halfToshibaB/docker/data/mindwtr`. |
 | `health-notify-general.yml` | Health notifier | Watches all containers through the Docker socket; the general role skips media-only checks and monitors the `willwagner.me` certificate. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
@@ -60,6 +59,52 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | `mcp-servers/compose.yaml` | — (aggregation only) | Groups the Compose-backed MCP services. The directory also holds each Polytoken client fragment; the file formats serve different roles. |
 | `mcp-servers/komodo-mcp.yml` | Komodo MCP | Read-only Komodo access for Polytoken agents, over loopback HTTP. Needs only outbound reach to Komodo Core and no Docker socket. |
 | `mcp-servers/arr-mcp.yml` | ARR MCP | Local media-service MCP endpoint and dashboard, bound to loopback with persistent config and no Docker socket. Claim the dashboard before adding service API keys; writes are off by default. |
+| `mcp-servers/obsidian-mcp.yml` | Obsidian MCP | Containerized `mcp-obsidian` (image `mcp/obsidian`) giving Polytoken agents tool access to the desktop Obsidian vault through the Local REST API plugin. On-demand stdio container — see the note in the fragment. |
+
+Desktop-only, live in this directory but are not containers Komodo/ARR-style: the
+`*.yaml` Polytoken client fragments (`arr.yaml`, `context7.yaml`, `frigate.yaml`,
+`github.yaml`, `home-assistant.yaml`, `pihole.yaml`, `playwright.yaml`,
+`unifi.yaml`, and so on) register remote or stdio servers directly in Polytoken,
+and each Compose-backed service file is included by `mcp-servers/compose.yaml`.
+`obsidian-mcp.yml` is Compose-tracked like the other services but is still
+launched per-session by the MCP client (stdio), not `docker compose up`.
+
+`mcp-obsidian` needs two host-side prerequisites before it works: the Obsidian
+**Local REST API** community plugin enabled in the desktop Obsidian app
+(default `127.0.0.1:27124`), and `OBSIDIAN_API_KEY` set in `desktop/.env` to the
+plugin's API key. The container reaches the host plugin through
+`host.docker.internal` mapped via the `host-gateway` extra_hosts entry, so no
+host port is published and no other network access is needed. Register the
+client in Polytoken (README step 4 in "Set up the desktop MCP servers" below)
+using the existing `mcp-servers/*.yaml` stdio-fragment pattern — this one
+substitutes `docker compose` for the `npx`/`uvx` stdio command so the tool runs
+as a container on demand:
+
+```yaml
+# ~/.config/polytoken/config.yaml (merge under mcp_servers)
+mcp_servers:
+  obsidian:
+    transport: stdio
+    command: docker
+    args:
+      - compose
+      - -f
+      - /home/wbw/work/docker_files/desktop/mcp-servers/obsidian-mcp.yml
+      - run
+      - --rm
+      - -T
+      - mcp-obsidian
+    pass_env: ["PATH", "OBSIDIAN_API_KEY"]
+    default_enabled: false
+```
+
+Keep `default_enabled: false` until the endpoint, API key, and tool surface
+have been reviewed (this server can delete files from the vault). Passing
+`OBSIDIAN_API_KEY` through `pass_env` keeps the plugin key out of this tracked
+repo — the Compose fragment reads it from `desktop/.env` at launch time, so the
+variable must exist in the environment of whatever process runs the client
+command (see "Provide credentials to stdio clients" below for the general
+pattern).
 
 `desktop/compose.yaml` is the canonical workstation deployment. It sets the stable project name `desktop` and includes `mcp-servers/compose.yaml`, which in turn includes each Compose-backed MCP service file. Keeping the services behind an aggregation file means adding one is a one-line change there instead of an edit to the top-level file.
 
@@ -373,25 +418,6 @@ docker compose start couchdb
 ```
 
 To restore: stop the service, restore both directories, re-apply ownership (`chown -R 5984:5984 /mnt/halfToshibaB/docker/data/couchdb/{data,etc}`), and start the service again. Restore `data` and `etc` as a pair so the backup stays self-consistent.
-
-## Mindwtr Cloud deployment
-
-`mindwtr-cloud` runs as UID/GID 1000 and writes its state to `/app/cloud_data`, so the bind-mounted directory must exist and be writable by that ID *before* the first start (1000 = the unprivileged "user 1000" that other media containers share on this host; give ownership to 1000:1000 directly, no world-accessible mode needed):
-
-```sh
-mkdir -p /mnt/halfToshibaB/docker/data/mindwtr
-chown 1000:1000 /mnt/halfToshibaB/docker/data/mindwtr
-```
-
-Without this the container exits with `cloud data directory is not writable` and restarts in a loop. Set `MINDWTR_CLOUD_AUTH_TOKENS` in `general/.env` (generate with `openssl rand -hex 32`), then bring up the service. It publishes no host port; Nginx Proxy Manager reaches it as `mindwtr-cloud:8787` over the shared `mindwtr-net` network, so the proxy host must use that hostname and must not append `/v1` to the base URL configured in the apps.
-
-The token is the whole account, which drives three consequences worth knowing before deploying:
-
-- **One token, all devices.** The token is hashed to the dataset filename, so devices sync together only by sharing a token. A second token is a second, empty dataset rather than a second key for the same one.
-- **Rotation orphans data.** Changing the token and recreating the container leaves the previous dataset on disk under the old token's hash; the new token starts empty. Move `<old-sha256>.json` onto the new key deliberately if you need to keep the data.
-- **An unset variable fails closed.** The server refuses to start when no allowlist is configured, so a missing `MINDWTR_CLOUD_AUTH_TOKENS` takes the service down rather than opening the instance to any token.
-
-Each dataset is a single JSON file under `/mnt/halfToshibaB/docker/data/mindwtr` (`<sha256-of-token>.json`), plus a `.locks` directory used for write serialization. The directory is covered by the general stack's daily backup (`general/backup.yml`), which copies it live; for a guaranteed-consistent copy, stop the service first as described under [Backups](#backups).
 
 ## Validation
 
