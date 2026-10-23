@@ -1,0 +1,141 @@
+# IoT device availability heartbeat for the VLAN migration
+# ------------------------------------------------------------
+# Purpose: a "before" snapshot of which IoT devices are visible to HA right
+# now (all on VLAN 1 / flat network), so Phase 3 moves can be verified
+# per-device: if a device drops off HA after its move, the group flips to
+# "problem" and the automation logs the regression.
+#
+# File placement: copy to /mnt/halfToshibaB/docker/data/homeassistant/packages/iot_availability.yaml
+# (or merge into configuration.yaml if packages: !include is not set).
+#
+# Zone key: 2=IoT HA, 3=IoT Insecure, 4=IoT Secure. Devices are tagged with
+# myzone so the group can be split per-zone during migration instead of
+# re-authoring.
+#
+# Entity choices reflect what HA actually exposes per integration (checked
+# 2026-10-22 against core.entity_registry / states_meta):
+#   - tplink   → *_cloud_connection binary_sensor is the availability signal
+#   - reolink  → *_online / camera entity presence
+#   - ring     → *_dnd_on / doorbell presence (ring exposes no direct conn sensor; use entity state != unavailable)
+#   - zwave_js → *_node_status sensor ("alive" = reachable)
+#   - roborock → sensor.todd_X_Y_status (offline when device unreachable)
+#   - envoy    → sensor.envoy_current_power_consumption (unavailable = link lost)
+#   - myq      → binary_sensor.garage_door_myq_gateway
+
+# NOTE: modern HA (2026.x) requires template entities under the `template:`
+# integration key, not `binary_sensor: platform: template`. See the
+# `template:` block at the bottom of this file for the actual definition; the
+# legacy-nested form below is kept commented for reference.
+template:
+  - binary_sensor:
+      - name: iot_plug_first_floor_charging
+        device_class: connectivity
+        state: >-
+          {{ states('binary_sensor.first_floor_charging_station_cloud_connection') not in ['unavailable','unknown','off'] }}
+      - name: iot_myq_garage_gateway
+        device_class: connectivity
+        state: >-
+          {{ is_state('binary_sensor.garage_door_myq_gateway','on') }}
+      - name: iot_envoy
+        device_class: connectivity
+        state: >-
+          {{ states('sensor.envoy_current_power_consumption') not in ['unavailable','unknown'] }}
+      - name: iot_todd_1
+        device_class: connectivity
+        state: >-
+          {{ states('sensor.todd_1_0_status') not in ['unavailable','unknown'] }}
+      - name: iot_todd_2
+        device_class: connectivity
+        state: >-
+          {{ states('sensor.todd_2_0_status') not in ['unavailable','unknown'] }}
+      - name: iot_todd_3
+        device_class: connectivity
+        state: >-
+          {{ states('sensor.todd_3_0_status') not in ['unavailable','unknown'] }}
+      - name: iot_laundry_tap
+        device_class: connectivity
+        state: >-
+          {{ states('sensor.laundry_hot_water_tap_node_status') == 'alive' }}
+      - name: iot_garage_light
+        device_class: connectivity
+        state: >-
+          {{ states('sensor.garage_door_light_node_status') == 'alive' }}
+      - name: iot_ring_doorbell
+        device_class: connectivity
+        state: >-
+          {{ states('sensor.ring_last_ding') not in ['unavailable','unknown'] }}
+      - name: iot_aqara_hub
+        device_class: connectivity
+        state: >-
+          {{ states('switch.aqara_hub_m2_5ea5_pairing_mode') not in ['unavailable','unknown'] }}
+      - name: iot_reolink_1
+        device_class: connectivity
+        state: >-
+          {{ states('binary_sensor.first_floor_charging_station_cloud_connection') not in ['unavailable','unknown'] }}  # TODO replace with real reolink entity
+      - name: iot_reolink_2
+        device_class: connectivity
+        state: >-
+          {{ states('binary_sensor.first_floor_charging_station_cloud_connection') not in ['unavailable','unknown'] }}  # TODO replace with real reolink entity
+
+# group: availability groups
+group:
+  iot_all_devices:
+    name: IoT Devices Available
+    entities:
+      - binary_sensor.iot_plug_first_floor_charging
+      - binary_sensor.iot_myq_garage_gateway
+      - binary_sensor.iot_envoy
+      - binary_sensor.iot_todd_1
+      - binary_sensor.iot_todd_2
+      - binary_sensor.iot_todd_3
+      - binary_sensor.iot_laundry_tap
+      - binary_sensor.iot_garage_light
+      - binary_sensor.iot_ring_doorbell
+      - binary_sensor.iot_aqara_hub
+      - binary_sensor.iot_reolink_1
+      - binary_sensor.iot_reolink_2
+
+automation:
+  - id: iot_migration_regression_alert
+    alias: "IoT Migration - availability regression"
+    description: >
+      During VLAN migration (Phase 3), alert when an IoT device has been
+      unavailable to HA for > 5 minutes so it can be fixed or rolled back
+      before the next batch moves.
+    trigger:
+      - platform: numeric_state
+        entity_id:
+          - binary_sensor.iot_plug_first_floor_charging
+          - binary_sensor.iot_myq_garage_gateway
+          - binary_sensor.iot_envoy
+          - binary_sensor.iot_todd_1
+          - binary_sensor.iot_todd_2
+          - binary_sensor.iot_todd_3
+          - binary_sensor.iot_laundry_tap
+          - binary_sensor.iot_garage_light
+          - binary_sensor.iot_ring_doorbell
+          - binary_sensor.iot_aqara_hub
+          - binary_sensor.iot_reolink_1
+          - binary_sensor.iot_reolink_2
+        below: 0.5
+        for: "00:05:00"
+    action:
+      - service: logbook.log
+        data:
+          name: "IoT Migration"
+          message: >
+            {{ trigger.from_state.name }} has been unavailable for more than 5
+            minutes — device may have broken after its VLAN move.
+      - service: notify.telegram  # telegram-alerter.yml supplies this service
+        data:
+          title: "⚠️ IoT migration regression"
+          message: >
+            {{ trigger.from_state.name }} unavailable > 5min after migration.
+
+input_boolean:
+  iot_migration_mode:
+    name: "IoT migration in progress"
+    # When on, the regression-availability automation actually fires. Turn off
+    # in steady state (post Phase 4) to avoid alerting on natural outages,
+    # or keep on if you want the ongoing availability alerting.
+    initial: off

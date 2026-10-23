@@ -17,3 +17,5 @@ include:
   - telegram-alerter.yml
   - mindwtr.yml
   - health-notify-general.yml
+  - uni-analytics.yml
+  - uni-live.yml
