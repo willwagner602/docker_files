@@ -1,0 +1,207 @@
+{
+  "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "P25AEC3597B117F17"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "max": 100,
+          "min": 0
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "alias": "RSSI",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "P25AEC3597B117F17"
+          },
+          "query": "SELECT mean(\"rssi\") FROM \"clients\" WHERE \"mac\" = '54:ef:44:30:5e:a5' AND $timeFilter GROUP BY time(30s) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Hub RSSI (UniFi quality 0–100)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "P25AEC3597B117F17"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2,
+            "showPoints": "never"
+          },
+          "unit": "dBm"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "alias": "signal",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "P25AEC3597B117F17"
+          },
+          "query": "SELECT mean(\"signal\") FROM \"clients\" WHERE \"mac\" = '54:ef:44:30:5e:a5' AND $timeFilter GROUP BY time(30s) fill(null)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "noise",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "P25AEC3597B117F17"
+          },
+          "query": "SELECT mean(\"noise\") FROM \"clients\" WHERE \"mac\" = '54:ef:44:30:5e:a5' AND $timeFilter GROUP BY time(30s) fill(null)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "Hub signal vs noise (dBm)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "PFA232A37422CBBAA"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 80,
+            "lineWidth": 1
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "unavailable"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "motion"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "green",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 9
+      },
+      "id": 3,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "alias": "motion",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "PFA232A37422CBBAA"
+          },
+          "query": "SELECT count(\"value\") FROM \"binary_sensor.first_floor_motion_sensor_1\" WHERE \"value\" = 1 AND $timeFilter GROUP BY time(5m) fill(0)",
+          "rawQuery": true,
+          "refId": "A",
+          "resultFormat": "time_series"
+        },
+        {
+          "alias": "unavailable",
+          "datasource": {
+            "type": "influxdb",
+            "uid": "PFA232A37422CBBAA"
+          },
+          "query": "SELECT count(\"state\") FROM \"binary_sensor.first_floor_motion_sensor_1\" WHERE \"state\" = 'unavailable' AND $timeFilter GROUP BY time(5m) fill(0)",
+          "rawQuery": true,
+          "refId": "B",
+          "resultFormat": "time_series"
+        }
+      ],
+      "title": "First-floor motion & dropouts (HA binary_sensor) — events per 5 min",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "unifi",
+    "homeassistant",
+    "aqara"
+  ],
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Aqara Hub — WiFi RF vs Motion (UniFi + HA)",
+  "uid": "aqara-hub-rf",
+  "version": 2
+}

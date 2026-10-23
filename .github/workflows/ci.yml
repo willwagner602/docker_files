@@ -98,6 +98,10 @@ jobs:
             cp .env.example .env
             echo "seeded .env from .env.example"
           fi
+          if [ -f unpoller.env.example ]; then
+            cp unpoller.env.example unpoller.env
+            echo "seeded unpoller.env from unpoller.env.example"
+          fi
           docker compose version
           docker compose config -q
           echo "OK: ${{ matrix.stack }} validates"
