@@ -1,0 +1,18 @@
+# Obsidian MCP client fragment: copy the mcp_servers entry into
+# ~/.config/polytoken/config.yaml (step 4 of "Set up the desktop MCP servers").
+# Needs OBSIDIAN_API_KEY exported in the Polytoken process environment
+# (step 5; listed in desktop/.env.example).
+mcp_servers:
+  obsidian:
+    transport: stdio
+    command: docker
+    args:
+      - compose
+      - -f
+      - /home/wbw/work/docker_files/desktop/mcp-servers/obsidian-mcp.yml
+      - run
+      - --rm
+      - -T
+      - mcp-obsidian
+    pass_env: ["PATH", "OBSIDIAN_API_KEY"]
+    default_enabled: false
