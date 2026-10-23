@@ -1,0 +1,33 @@
+# UniFi → analytics pipeline: nightly snapshot of IoT device state for the VLAN migration
+# ---------------------------------------------------------------------------------------
+# Runs on wbw-ha (where the controller runs). Records per-device facts to a
+# local JSON-lines file for review during/after the migration:
+#   - which VLAN each client is in (from RADIUS / network association)
+#   - whether the controller sees it as connected
+#   - traffic counters
+# Post-migration, this answers "did anything on VLAN 2/3/4 go silent / fail
+# DHCP silently?"
+#
+# Design: 1 file, cron-able, no extra deps. Read-only against the controller
+# legacy API (login path /api/login, only path this build accepts).
+
+services:
+  uni-analytics:
+    image: python:3.12-slim
+    container_name: uni-analytics
+    restart: unless-stopped
+    environment:
+      UNIFI_HOST: 10.0.0.16
+      UNIFI_PORT: "8443" # direct LAN IP; the FQDN hairpins out the WAN (no split-horizon DNS) and takes 10–25s
+      UNIFI_USERNAME: unifi-mcp # set in .env
+      UNIFI_PASSWORD: ${UNIFI_PASSWORD:?set UNIFI_PASSWORD in .env}
+      OUT_DIR: /out
+    volumes:
+      - ./scripts/unifi_snapshot.py:/snapshot.py:ro
+      - /mnt/halfToshibaB/docker/data/uni-analytics:/out
+    command: python /snapshot.py
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

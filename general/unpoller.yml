@@ -1,0 +1,62 @@
+services:
+  unifi-influxdb:
+    image: docker.io/influxdb:1.8-alpine
+    container_name: unifi-influxdb
+    environment:
+      - INFLUXDB_DB=unifi
+      - TZ=America/Los_Angeles
+    volumes:
+      - /mnt/halfToshibaB/docker/data/unpoller/influx:/var/lib/influxdb
+    networks:
+      - unifi-mon
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  unpoller:
+    image: ghcr.io/unpoller/unpoller:latest
+    container_name: unpoller
+    depends_on:
+      - unifi-influxdb
+    env_file:
+      - unpoller.env
+    environment:
+      - TZ=America/Los_Angeles
+    networks:
+      - unifi-mon
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  unifi-grafana:
+    image: docker.io/grafana/grafana:latest
+    container_name: unifi-grafana
+    depends_on:
+      - unifi-influxdb
+    user: "1000:1000"
+    env_file:
+      - unpoller.env
+    environment:
+      - TZ=America/Los_Angeles
+    volumes:
+      - /mnt/halfToshibaB/docker/data/unpoller/grafana:/var/lib/grafana
+      - ./unpoller-grafana-provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - 3001:3000
+    networks:
+      - unifi-mon
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  unifi-mon:

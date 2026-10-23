@@ -1,5 +1,6 @@
 .idea
 .env
+unpoller.env
 zwave/zwave-backup
 .polytoken
 
