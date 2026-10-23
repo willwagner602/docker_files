@@ -39,7 +39,10 @@ services:
       #     in this monitoring-only setup.
       #   /etc/komodo/backups — Komodo Core's own dated DB dumps; redundant
       #     with the komodo-mongo-* volumes that are backed up directly.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo
+      # Uni-analytics writes daily diagnostic snapshots (JSONL device↔VLAN
+      # records for the IoT migration); they're derivable operating data —
+      # exclude to keep backup zips lean, same rationale as FTDC diagnostic.data.
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo /mnt/halfToshibaB/docker/data/uni-analytics
       # Backup paths that no service mounts (repo copy for restorability).
       # The tracked job-digest config and the test-support scripts ride in via
       # the repo copy; their git history is the backup.
