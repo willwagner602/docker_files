@@ -10,17 +10,25 @@
 # daemon whose env vars map 1:1 onto avahi-daemon.conf sections.
 #
 # Host prerequisites (see ~/iot-migration.md):
-#   - ENO_IFACE below must be set to the wbw-ha host's wired NIC name.
-#   - The physical switch port must trunk VLAN 3 tagged toward this host.
-#   - .3 static-IP choices must sit outside both DHCP pools.
+#   - parent interfaces below use wbw-ha's wired NIC: enp3s0 (VLAN 1 native).
+#   - Switch port (USW-Lite-16-PoE port 16) must carry VLAN 3 tagged.
+#   - Static IPs must sit outside both DHCP pools.
 
 services:
   mdns-reflector:
     image: flungo/avahi:latest # pin a digest after first pull
     container_name: mdns-reflector
     restart: unless-stopped
-    cap_drop: [ALL] # avahi needs nothing privileged
+    # flungo/avahi needs a writable /var/run for its pid/state dir; tmpfs
+    # /run fixes the "Failed to create runtime directory" crash-loop.
+    tmpfs:
+      - /run
+      # Stop the reflector advertising its own ssh/sftp placeholders: an empty
+      # tmpfs over the image's stock service definitions leaves it acting as
+      # a pure reflector.
+      - /etc/avahi/services
     environment:
+      SERVER_HOST_NAME: mdns-reflector
       REFLECTOR_ENABLE_REFLECTOR: "yes"
       # Only replay the service types that must cross; everything else stays
       # zone-local. Extend if another service type is later needed.
@@ -29,9 +37,9 @@ services:
       SERVER_USE_IPV6: "no"
     networks:
       trusted:
-        ipv4_address: 10.0.0.65  # outside any DHCP reservation scope
+        ipv4_address: 10.0.0.222
       iot-insecure:
-        ipv4_address: 10.0.3.65
+        ipv4_address: 10.0.3.222
     logging:
       driver: json-file
       options:
@@ -39,14 +47,13 @@ services:
         max-file: "3"
 
 # Physical-network attachments. The reflector needs one interface per zone;
-# macvlan parent sub-interfaces are created by the driver on the fly
-# (parent wlan/eth NIC name must be set to the wbw-ha host's wired NIC).
+# the macvlan driver creates the enp3s0.3 VLAN sub-interface itself.
 networks:
   trusted:
     name: lan-trusted-mdns
     driver: macvlan
     driver_opts:
-      parent: eno1.1.1 # TODO: host NIC name — replace before deploy
+      parent: enp3s0 # untagged/native VLAN 1
     ipam:
       config:
         - subnet: 10.0.0.0/24
@@ -55,7 +62,7 @@ networks:
     name: lan-iot3-mdns
     driver: macvlan
     driver_opts:
-      parent: eno1.3 # tagged VLAN 3
+      parent: enp3s0.3 # tagged VLAN 3
     ipam:
       config:
         - subnet: 10.0.3.0/24
