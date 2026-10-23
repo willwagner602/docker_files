@@ -61,52 +61,41 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | `mcp-servers/arr-mcp.yml` | ARR MCP | Local media-service MCP endpoint and dashboard, bound to loopback with persistent config and no Docker socket. Claim the dashboard before adding service API keys; writes are off by default. |
 | `mcp-servers/obsidian-mcp.yml` | Obsidian MCP | Containerized `mcp-obsidian` (image `mcp/obsidian`) giving Polytoken agents tool access to the desktop Obsidian vault through the Local REST API plugin. On-demand stdio container — see the note in the fragment. |
 
-Desktop-only, live in this directory but are not containers Komodo/ARR-style: the
-`*.yaml` Polytoken client fragments (`arr.yaml`, `context7.yaml`, `frigate.yaml`,
-`github.yaml`, `home-assistant.yaml`, `pihole.yaml`, `playwright.yaml`,
-`unifi.yaml`, and so on) register remote or stdio servers directly in Polytoken,
-and each Compose-backed service file is included by `mcp-servers/compose.yaml`.
-`obsidian-mcp.yml` is Compose-tracked like the other services but is still
-launched per-session by the MCP client (stdio), not `docker compose up`.
+Two kinds of file live in this directory without being stack services like
+Komodo/ARR. The `*.yaml` Polytoken client fragments (`arr.yaml`, `context7.yaml`,
+`frigate.yaml`, `github.yaml`, `home-assistant.yaml`, `obsidian.yaml`,
+`pihole.yaml`, `playwright.yaml`, `unifi.yaml`, and so on) register remote or
+stdio servers directly in Polytoken. Every Compose-backed service file is
+included by `mcp-servers/compose.yaml` except `obsidian-mcp.yml`, which is
+deliberately left out of the aggregation: it is stdio-only, launched
+per-session by the MCP client with `docker compose run`, never
+`docker compose up` — an always-on instance would conflict with the per-session
+container.
 
 `mcp-obsidian` needs two host-side prerequisites before it works: the Obsidian
 **Local REST API** community plugin enabled in the desktop Obsidian app
-(default `127.0.0.1:27124`), and `OBSIDIAN_API_KEY` set in `desktop/.env` to the
-plugin's API key. The container reaches the host plugin through
+(default `127.0.0.1:27124`), and `OBSIDIAN_API_KEY` exported in the Polytoken
+process environment, set to the plugin's API key (listed in
+`desktop/.env.example`; see step 5 of "Set up the desktop MCP servers" below).
+The container reaches the host plugin through
 `host.docker.internal` mapped via the `host-gateway` extra_hosts entry, so no
 host port is published and no other network access is needed. Register the
-client in Polytoken (README step 4 in "Set up the desktop MCP servers" below)
-using the existing `mcp-servers/*.yaml` stdio-fragment pattern — this one
-substitutes `docker compose` for the `npx`/`uvx` stdio command so the tool runs
-as a container on demand:
+client in Polytoken (step 4 of "Set up the desktop MCP servers" below) by
+copying the `mcp_servers` entry from the `desktop/mcp-servers/obsidian.yaml`
+fragment — the standard client-fragment procedure; this one substitutes
+`docker compose` for the `npx`/`uvx` stdio command so the tool runs as a
+container on demand. Keep `default_enabled: false` until the endpoint, API key,
+and tool surface have been reviewed (this server can delete files from the
+vault).
 
-```yaml
-# ~/.config/polytoken/config.yaml (merge under mcp_servers)
-mcp_servers:
-  obsidian:
-    transport: stdio
-    command: docker
-    args:
-      - compose
-      - -f
-      - /home/wbw/work/docker_files/desktop/mcp-servers/obsidian-mcp.yml
-      - run
-      - --rm
-      - -T
-      - mcp-obsidian
-    pass_env: ["PATH", "OBSIDIAN_API_KEY"]
-    default_enabled: false
-```
+`pass_env: ["PATH", "OBSIDIAN_API_KEY"]` in the fragment keeps the plugin key
+out of this tracked repo, and the variable must exist in the environment of
+whatever process runs the client command: the fragment is launched with
+`docker compose -f`, so Compose resolves interpolation from that process
+environment, not from `desktop/.env` (Polytoken never reads that file; see
+"Provide credentials to stdio clients" below for the general pattern).
 
-Keep `default_enabled: false` until the endpoint, API key, and tool surface
-have been reviewed (this server can delete files from the vault). Passing
-`OBSIDIAN_API_KEY` through `pass_env` keeps the plugin key out of this tracked
-repo — the Compose fragment reads it from `desktop/.env` at launch time, so the
-variable must exist in the environment of whatever process runs the client
-command (see "Provide credentials to stdio clients" below for the general
-pattern).
-
-`desktop/compose.yaml` is the canonical workstation deployment. It sets the stable project name `desktop` and includes `mcp-servers/compose.yaml`, which in turn includes each Compose-backed MCP service file. Keeping the services behind an aggregation file means adding one is a one-line change there instead of an edit to the top-level file.
+`desktop/compose.yaml` is the canonical workstation deployment. It sets the stable project name `desktop` and includes `mcp-servers/compose.yaml`, which in turn includes each Compose-backed MCP service file (except the stdio-only `obsidian-mcp.yml`, deliberately excluded as described above). Keeping the services behind an aggregation file means adding one is a one-line change there instead of an edit to the top-level file.
 
 `general/` and `media/` are deployed to their own hosts. Nothing in `desktop/` is deployed to either, and nothing here is on the general or media stack.
 
