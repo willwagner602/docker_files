@@ -7,6 +7,8 @@ services:
       - TZ=America/Los_Angeles
     volumes:
       - /mnt/halfToshibaB/docker/data/unpoller/influx:/var/lib/influxdb
+    ports:
+      - "127.0.0.1:8086:8086" # host-networked HA writes here; not LAN-exposed
     networks:
       - unifi-mon
     restart: unless-stopped
