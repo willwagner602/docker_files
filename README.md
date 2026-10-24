@@ -50,6 +50,10 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | `couchdb.yml` | CouchDB | Self-hosted Obsidian LiveSync backend; behind Nginx Proxy Manager over a dedicated `couchdb-net` Docker network shared only with the proxy, with data bind-mounted under `/mnt/halfToshibaB/docker/data/couchdb`. |
 | `mindwtr.yml` | Mindwtr Cloud | Sync server for the Mindwtr desktop and mobile apps; published only to Nginx Proxy Manager over a dedicated `mindwtr-net` Docker network, with data bind-mounted under `/mnt/halfToshibaB/docker/data/mindwtr`. |
 | `health-notify-general.yml` | Health notifier | Watches all containers through the Docker socket; the general role skips media-only checks and monitors the `willwagner.me` certificate. |
+| `unpoller.yml` | UniFi monitoring | Scrapes the UniFi controller into InfluxDB and serves Grafana dashboards (loopback-published on `127.0.0.1:3001`). Requires `unpoller.env` (copy from `unpoller.env.example`, then fill in real controller credentials). |
+| `iot-mdns-reflector.yml` | mDNS reflector | Bridges mDNS between the trusted LAN and the IoT VLAN during migration; see the prerequisites in the file's header comments. |
+| `uni-analytics.yml` | UniFi snapshot | Nightly per-client VLAN/traffic JSONL snapshot under `/mnt/halfToshibaB/docker/data/uni-analytics`; loops internally on `SNAPSHOT_HOUR` (default 14:00 local, one failed-scrape retry per hour). |
+| `uni-live.yml` | UniFi live view | Auto-refreshing webpage/JSON of every client the controller currently sees; loopback-published on `127.0.0.1:8092`, LAN-only admin surface. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 
@@ -70,6 +74,7 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | Path | Purpose |
 | --- | --- |
 | `general/.env.example`, `media/.env.example`, `desktop/.env.example` | Templates for the required per-stack variables. Copy to `.env` in the same directory and replace the values; `.env` is gitignored. |
+| `general/unpoller.env.example` | Template for the UniFi monitoring stack's second env file. Copy to `general/unpoller.env` and fill in real controller + Grafana credentials; rotate together with `UNIFI_PASSWORD` in `general/.env` (they are separate stores for the same controller). |
 | `scripts/health-notify.sh` | Health-notification script used by both stacks' notifier containers; mounted read-only into the container. |
 | `scripts/tests/health-notify/` | Test suite for `health-notify.sh`, with stub binaries under `bin/`. Run with `make test`. |
 | `Makefile` | Local entry points: `make test`, `make validate`, `make check`. |

@@ -137,8 +137,10 @@ check_stack() { # $1 = stack directory name
     cp "$work/$stack/unpoller.env.example" "$work/$stack/unpoller.env"
   fi
 
-  # Required variables for stacks whose .env.example does not cover them
-  # (mirrors the placeholder values CI uses for `docker compose config`).
+  # Required variables for stacks whose .env.example does not cover them.
+  # This is a *subset* of CI's env block, which is itself a subset of the
+  # example files (.env.example / unpoller.env.example are the de facto
+  # source of truth for required vars); this set suffices for these stacks.
   TELEGRAM_BOT_TOKEN=ci-placeholder \
   TELEGRAM_CHAT_ID=ci-placeholder \
   COUCHDB_USER=ci-placeholder \

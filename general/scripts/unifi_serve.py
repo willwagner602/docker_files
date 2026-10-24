@@ -7,7 +7,7 @@ GET /api   → same data as JSON
 Read-only against the controller (legacy /api/login). Fast responses: data is
 scraped in a background thread every 20s; requests serve the cached render.
 """
-import json, os, html, ssl, time, threading, datetime as dt, http.cookiejar, urllib.request
+import json, os, ssl, time, threading, datetime as dt, http.cookiejar, urllib.request
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 
 HOST = os.environ['UNIFI_HOST']
@@ -17,9 +17,16 @@ PASS = os.environ['UNIFI_PASSWORD']
 PORT = int(os.environ.get('SERVE_PORT', '8092'))
 
 BASE = f"https://{HOST}:{API_PORT}"
+# UNIFI_VERIFY_SSL: "false" (default) trusts the controller's self-signed cert.
+# Set to "true" after installing the controller cert into the system CA store.
+verify = os.environ.get('UNIFI_VERIFY_SSL', 'false').lower() != 'false'
 ctx = ssl.create_default_context()
-ctx.check_hostname = False
-ctx.verify_mode = ssl.CERT_NONE
+if verify:
+    ctx.check_hostname = True
+    ctx.verify_mode = ssl.CERT_REQUIRED
+else:
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
 jar = http.cookiejar.CookieJar()
 op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar),
         urllib.request.HTTPSHandler(context=ctx))
@@ -88,21 +95,20 @@ tr:hover td{background:#f2f6ff}
 td .num{font-variant-numeric:tabular-nums}
 </style></head><body>
 <h1>UniFi clients — live snapshot</h1>
-<div class=meta>auto-scrapes controller every 20s · generated <span id=gen>…</span> ·
+<div id=errbanner style="display:none;background:#fee;border:1px solid #c33;color:#900;padding:6px 10px;border-radius:6px;margin-bottom:.7rem"></div>
+<div class=meta>auto-scrapes controller every 20s · data from <span id=gen>…</span> ·
 <span id=n>…</span> clients · refreshed table every 30s
 <button id=reload>reload data now</button></div>
 <input id=filter placeholder="filter by any text…">
 <select id=zoneSel><option value="">all zones</option></select>
 <table id=t><thead><tr>
-<th data-k=name>Device</th><th data-k=ip>IP</th><th data-k=mac>MAC</th><th data-k=vlan>VLAN / network</th>
-<th data-k=kind>kind</th><th data-k=where>ESSID / port</th>
+<th data-k=name>Device</th><th data-k=ip>IP</th><th data-k=mac>MAC</th><th data-k=vlan>VLAN / network</th><th data-k=kind>kind</th><th data-k=where>ESSID / port</th>
 <th data-k=last_seen_s>last seen</th><th data-k=rx>rx</th><th data-k=tx>tx</th>
 </tr></thead><tbody id=b>
 </tbody></table>
 <script>
-let ROWS=[], SORTK='name', DIR=1;
+let ROWS=[], SORTK='name', DIR=1, META=null;
 const $=id=>document.getElementById(id);
-function bytes(n){['B','KB','MB','GB','TB'].forEach((u,i)=>{if(Math.abs(n)<1024||u==='TB'){return i?n.toFixed(1)+u:n+'B';}n/=1024;})}
 function bytes2(n){let i=0;for(;n>=1024&&i<4;i++)n/=1024;return (i?n.toFixed(1):n)+['B','KB','MB','GB','TB'][i];}
 function esc(s){return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function cell(r,k){
@@ -113,13 +119,8 @@ function cell(r,k){
     default: return esc(r[k]);
   }
 }
-// where = essid first, else port number; sort by (type, value) pair
-function whereKey(r){
-  const e=r.essid||'';
-  const p=parseInt(r.sw_port,10)||0;
-  return e ? {t:0, s:e, n:0} : {t:1, s:'', n:p};
-}
 function render(){
+  const d=META||{};
   const f=$('filter').value.toLowerCase(), z=$('zoneSel').value;
   let rows=ROWS.filter(r=>(!z||r.vlan===z)&&(!f||JSON.stringify(r).toLowerCase().includes(f)));
   rows.sort((a,b)=>{
@@ -138,16 +139,26 @@ function render(){
     if(SORTK==='last_seen_s'){const d=(a.last_seen_s??-1)-(b.last_seen_s??-1); if(d)return d*DIR; return 0;}
     if(typeof x==='number'&&typeof y==='number')return (x-y)*DIR;
     return String(x).localeCompare(String(y))*DIR;});
-  $('b').innerHTML=rows.map(r=>'<tr class="'+(String(r.vlan).indexOf('IoT')===0?'iot':'')+'">'+
+  $('b').innerHTML=rows.map(r=>'<tr class="'+(String(r.vlan||'').toLowerCase().indexOf('iot')===0?'iot':'')+'">'+
     ['name','ip','mac','vlan','kind','where','last_seen_s','rx','tx'].map(k=>'<td>'+cell(r,k)+'</td>').join('')+'</tr>').join('');
   $('n').textContent=rows.length+' of '+ROWS.length;
-  $('gen').textContent=new Date().toLocaleTimeString();
+  // "data from" reflects the last successful scrape, not browser render time,
+  // so stale rows look stale; errbanner shows the last scrape error.
+  const srcMs=d.err_at?d.err_at*1000:null;
+  $('gen').textContent=srcMs?new Date(srcMs).toLocaleTimeString()+' (stale)':'never';
+  const eb=$('errbanner');
+  if(d.err){eb.style.display='block';eb.textContent='last scrape failed: '+d.err;}else{eb.style.display='none';}
 }
 function load(){
   fetch('/api').then(q=>q.json()).then(d=>{
     ROWS=d.clients||[];
+    META=d;
+    // Preserve the user's zone selection across the 30s auto-refresh; the
+    // dropdown is rebuilt with esc()d options but value/selection is restored.
+    const sel=$('zoneSel').value;
     const zs=[...new Set(ROWS.map(r=>r.vlan))];
     $('zoneSel').innerHTML='<option value="">all zones</option>'+zs.map(z=>'<option>'+esc(z)+'</option>').join('');
+    $('zoneSel').value=sel;
     render();
   });
 }
@@ -173,6 +184,8 @@ class H(BaseHTTPRequestHandler):
                 if rows is None:
                     rows = _fetch()
                 body = json.dumps({'generated': dt.datetime.now().isoformat(timespec='seconds'),
+                                   'err': _CACHE['err'],
+                                   'err_at': _CACHE['at'] or None,
                                    'clients': rows}, indent=1).encode()
                 self.send_response(200)
                 self.send_header('Content-Type','application/json')

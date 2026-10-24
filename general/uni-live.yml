@@ -19,9 +19,9 @@ services:
     ports:
       - "127.0.0.1:8092:8092" # LAN-only admin surface; not reachable off-host
     environment:
-      UNIFI_HOST: 10.0.0.16
+      UNIFI_HOST: 10.0.0.16 # controller LAN IP; change here if the controller moves
       UNIFI_PORT: "8443" # direct LAN IP; the FQDN hairpins out the WAN (no split-horizon DNS) and takes 10–25s
-      UNIFI_USERNAME: unifi-mcp
+      UNIFI_USERNAME: ${UNIFI_USERNAME:?set UNIFI_USERNAME in .env}
       UNIFI_PASSWORD: ${UNIFI_PASSWORD:?set UNIFI_PASSWORD in .env}
       SERVE_PORT: "8092"
     volumes:

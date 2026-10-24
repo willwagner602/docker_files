@@ -2,6 +2,14 @@ services:
   unifi-influxdb:
     image: docker.io/influxdb:1.8-alpine
     container_name: unifi-influxdb
+    # SECURITY MODEL (deliberate): InfluxDB 1.8 auth is DISABLED by default and
+    # intentionally left off here. The 127.0.0.1 host publish keeps the LAN out,
+    # and the unifi-mon Docker network is a private trust domain — only the
+    # three services in this file attach to it. Anything granting a container
+    # access to unifi-mon implicitly grants full read/write on the unifi DB
+    # (no credentials). Enabling INFLUXDB_HTTP_AUTH_ENABLED would also require
+    # threading credentials through unpoller.env and the Grafana datasource;
+    # revisit if unifi-mon ever gains a member outside this file.
     environment:
       - INFLUXDB_DB=unifi
       - TZ=America/Los_Angeles

@@ -9,7 +9,7 @@
 # Image: flungo/avahi (https://github.com/flungo-docker/avahi) — Alpine Avahi
 # daemon whose env vars map 1:1 onto avahi-daemon.conf sections.
 #
-# Host prerequisites (see ~/iot-migration.md):
+# Host prerequisites (see docs/iot-migration.md in this repo):
 #   - parent interfaces below use wbw-ha's wired NIC: enp3s0 (VLAN 1 native).
 #   - Switch port (USW-Lite-16-PoE port 16) must carry VLAN 3 tagged.
 #   - Static IPs must sit outside both DHCP pools.
