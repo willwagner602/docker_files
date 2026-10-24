@@ -1,0 +1,94 @@
+# Woodpecker CI stack for wbw-ha (the "general" docker server).
+#
+# Deployed from this repo's checkout on wbw-ha:
+#   docker compose -f woodpecker.yml up -d
+#
+# Services:
+#   server    — CI server; HTTP :8000, reached by nginx-proxy-manager on the
+#               shared `npm` network (proxy host woodpecker.willwagner.me
+#               -> http://general-woodpecker-server:8000, TLS by NPM).
+#   agent     — job runner; docker-socket backend, 2 parallel workflows.
+#   artifacts — nginx serving pipeline failure artifacts (e.g. Playwright
+#               reports) on :8095, basic auth, LAN-only.
+#
+# Required untracked files next to this one (never commit):
+#   woodpecker.env               — WOODPECKER_GITHUB_CLIENT/SECRET (OAuth app,
+#                                  callback https://woodpecker.willwagner.me/authorize),
+#                                  WOODPECKER_AGENT_SECRET/GRPC_SECRET (openssl rand -hex 32)
+#   woodpecker-artifacts-htpasswd — htpasswd entry: openssl passwd -apr1 <pw>
+#
+# The agent reaches the server by pinned IPv4 (172.31.99.10 on the dedicated
+# woodpecker-net bridge): this host's docker embedded DNS intermittently
+# stalls name resolution, which hangs the agent's gRPC dial.
+services:
+  server:
+    container_name: general-woodpecker-server
+    image: woodpeckerci/woodpecker-server:v3.19
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file: woodpecker.env
+    volumes:
+      - /mnt/halfToshibaB/docker/data/woodpecker-data:/var/lib/woodpecker
+    networks:
+      npm: {}
+      wp:
+        ipv4_address: 172.31.99.10
+
+  agent:
+    container_name: general-woodpecker-agent
+    image: woodpeckerci/woodpecker-agent:v3.19
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file: woodpecker.env
+    environment:
+      # Pinned IPv4 of the server on woodpecker-net — the docker embedded DNS
+      # on this host intermittently stalls name resolution, which hangs the
+      # agent's gRPC dial; the IP sidesteps DNS entirely.
+      WOODPECKER_SERVER: 172.31.99.10:9000
+      WOODPECKER_MAX_WORKFLOWS: "2"
+      WOODPECKER_LOG_LEVEL: info
+      # Mounted into every pipeline container so steps can drop failure
+      # artifacts (e.g. Playwright reports); the artifacts service serves it.
+      WOODPECKER_BACKEND_DOCKER_VOLUMES: /mnt/halfToshibaB/docker/data/woodpecker-artifacts:/woodpecker-artifacts
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - woodpecker-agent-conf:/etc/woodpecker
+    networks:
+      - wp
+
+  artifacts:
+    container_name: general-woodpecker-artifacts
+    image: nginx:alpine
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    ports:
+      - "8095:80"
+    volumes:
+      - /mnt/halfToshibaB/docker/data/woodpecker-artifacts:/usr/share/nginx/html:ro
+      - ./woodpecker-artifacts-site.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./woodpecker-artifacts-htpasswd:/etc/nginx/htpasswd:ro
+
+networks:
+  npm:
+    external: true
+  wp:
+    name: woodpecker-net
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.99.0/24
+
+volumes:
+  woodpecker-agent-conf:
