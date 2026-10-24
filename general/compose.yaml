@@ -16,3 +16,4 @@ include:
   - komodo.yml
   - telegram-alerter.yml
   - health-notify-general.yml
+  - iot-mdns-reflector.yml
