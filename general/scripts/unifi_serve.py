@@ -104,12 +104,13 @@ let ROWS=[], SORTK='name', DIR=1;
 const $=id=>document.getElementById(id);
 function bytes(n){['B','KB','MB','GB','TB'].forEach((u,i)=>{if(Math.abs(n)<1024||u==='TB'){return i?n.toFixed(1)+u:n+'B';}n/=1024;})}
 function bytes2(n){let i=0;for(;n>=1024&&i<4;i++)n/=1024;return (i?n.toFixed(1):n)+['B','KB','MB','GB','TB'][i];}
+function esc(s){return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 function cell(r,k){
   switch(k){
-    case 'where': return r.essid || (r.sw_port?('port '+r.sw_port):'');
+    case 'where': return esc(r.essid || (r.sw_port?('port '+r.sw_port):''));
     case 'last_seen_s': return r.last_seen_s==null?'?':r.last_seen_s+'s ago';
     case 'rx': case 'tx': return '<span class=num>'+bytes2(r[k])+'</span>';
-    default: return r[k];
+    default: return esc(r[k]);
   }
 }
 // where = essid first, else port number; sort by (type, value) pair
@@ -146,7 +147,7 @@ function load(){
   fetch('/api').then(q=>q.json()).then(d=>{
     ROWS=d.clients||[];
     const zs=[...new Set(ROWS.map(r=>r.vlan))];
-    $('zoneSel').innerHTML='<option value="">all zones</option>'+zs.map(z=>'<option>'+z+'</option>').join('');
+    $('zoneSel').innerHTML='<option value="">all zones</option>'+zs.map(z=>'<option>'+esc(z)+'</option>').join('');
     render();
   });
 }

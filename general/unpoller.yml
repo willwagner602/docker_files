@@ -50,7 +50,7 @@ services:
       - /mnt/halfToshibaB/docker/data/unpoller/grafana:/var/lib/grafana
       - ./unpoller-grafana-provisioning:/etc/grafana/provisioning:ro
     ports:
-      - 3001:3000
+      - "127.0.0.1:3001:3000" # admin surface; not reachable off-host
     networks:
       - unifi-mon
     restart: unless-stopped

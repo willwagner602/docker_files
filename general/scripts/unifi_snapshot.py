@@ -37,7 +37,7 @@ nets = {n['_id']: n.get('name') for n in call('/api/s/default/rest/networkconf')
 
 today = dt.date.today().isoformat()
 out_path = os.path.join(OUT_DIR, f"{today}-snapshot.jsonl")
-with open(out_path, 'w') as f:
+with open(out_path, 'a') as f:
     for c in sta:
         nname = nets.get(c.get('network_id') or '', 'unknown')
         row = {
