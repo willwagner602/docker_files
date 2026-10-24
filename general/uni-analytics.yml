@@ -17,8 +17,8 @@ services:
     container_name: uni-analytics
     restart: unless-stopped
     environment:
-      UNIFI_HOST: 10.0.0.16 # controller LAN IP; change here if the controller moves
-      UNIFI_PORT: "8443" # direct LAN IP; the FQDN hairpins out the WAN (no split-horizon DNS) and takes 10–25s
+      UNIFI_HOST: ${UNIFI_HOST:?set UNIFI_HOST in .env} # e.g. unifi.willwagner.me — LAN shortcut via Pi-hole split-horizon DNS
+      UNIFI_PORT: ${UNIFI_PORT:-443} # 443 through nginx-proxy; 8443 only if pointing at the controller IP directly
       UNIFI_USERNAME: ${UNIFI_USERNAME:?set UNIFI_USERNAME in .env}
       UNIFI_PASSWORD: ${UNIFI_PASSWORD:?set UNIFI_PASSWORD in .env}
       OUT_DIR: /out
