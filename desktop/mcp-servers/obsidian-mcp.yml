@@ -1,0 +1,35 @@
+# Obsidian MCP — containerized access to the desktop Obsidian vault for
+# Polytoken agents, via the Obsidian Local REST API community plugin.
+#
+# Project: mcp-obsidian (https://github.com/MarkusPfundstein/mcp-obsidian).
+# The image is the standard containerized build of that project published by
+# Docker Inc. (same MIT project, same env vars as upstream's local build).
+#
+# Unlike Komodo/ARR this is NOT a long-running service: MCP over stdio needs a
+# JSON-RPC subprocess with stdin attached, so Polytoken launches it on demand
+# with `docker compose run --rm -T mcp-obsidian` (never `docker compose up` —
+# an always-on instance would conflict with the per-session container). That is
+# why this file is deliberately not listed in mcp-servers/compose.yaml.
+# It reaches the Obsidian Local REST API plugin running on the workstation
+# host, not in a container.
+#
+# Prerequisite: the Local REST API plugin must be enabled Obsidian-side (its
+# default endpoint is 127.0.0.1:27124), and OBSIDIAN_API_KEY must be exported
+# in the environment of the process that launches this fragment (Polytoken's
+# pass_env; Compose does not read desktop/.env here — see README step 5). The
+# server exposes both read and write tools (append/patch/delete); review the
+# surface before enabling for agents.
+services:
+  mcp-obsidian:
+    # Digest pinned 2026-10-23; update deliberately with the image tag.
+    image: mcp/obsidian:latest@sha256:0eba4c05742ad35faeb91eca40b792454d440d86449c9f1b3cb6c387a510651b
+    # No container_name: an on-demand `run` service must allow concurrent
+    # sessions; a fixed name would make it permanently single-instance.
+    # No ports: stdio only, live for the duration of one MCP client session.
+    environment:
+      - OBSIDIAN_HOST=host.docker.internal
+      - OBSIDIAN_API_KEY=${OBSIDIAN_API_KEY:?OBSIDIAN_API_KEY is required in the environment of the process that launches this fragment (README step 5)}
+    extra_hosts:
+      # Linux Docker does not resolve host.docker.internal by default; map it
+      # to the host so the container can reach the Obsidian plugin on the host.
+      - "host.docker.internal:host-gateway"

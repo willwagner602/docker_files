@@ -30,7 +30,10 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/unpoller/influx /mnt/halfToshibaB/docker/data/unpoller/grafana /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/mindwtr /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
+      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/unpoller/influx /mnt/halfToshibaB/docker/data/unpoller/grafana /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
+      # /mnt/halfToshibaB/docker/data/mindwtr was dropped 2026-10 with the
+      # decommissioned Mindwtr Cloud service; the on-host directory is slated
+      # for deletion. Deliberate removal — do not re-add.
       # Named volumes to back up (logical compose names).
       - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys
       # Service mounts deliberately NOT backed up, with the reason:
@@ -39,7 +42,10 @@ services:
       #     in this monitoring-only setup.
       #   /etc/komodo/backups — Komodo Core's own dated DB dumps; redundant
       #     with the komodo-mongo-* volumes that are backed up directly.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo
+      # Uni-analytics writes daily diagnostic snapshots (JSONL device↔VLAN
+      # records for the IoT migration); they're derivable operating data —
+      # exclude to keep backup zips lean, same rationale as FTDC diagnostic.data.
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo /mnt/halfToshibaB/docker/data/uni-analytics
       # Backup paths that no service mounts (repo copy for restorability).
       # The tracked job-digest config and the test-support scripts ride in via
       # the repo copy; their git history is the backup.
@@ -76,7 +82,6 @@ services:
       - /mnt/halfToshibaB/docker/data/unpoller/influx:/backup-roots/mnt/halfToshibaB/docker/data/unpoller/influx:ro
       - /mnt/halfToshibaB/docker/data/unpoller/grafana:/backup-roots/mnt/halfToshibaB/docker/data/unpoller/grafana:ro
       - /mnt/halfToshibaB/docker/data/couchdb:/backup-roots/mnt/halfToshibaB/docker/data/couchdb:ro
-      - /mnt/halfToshibaB/docker/data/mindwtr:/backup-roots/mnt/halfToshibaB/docker/data/mindwtr:ro
       - /mnt/halfToshibaB/docker/data/job-digest/state:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/state:ro
       - /mnt/halfToshibaB/docker/data/job-digest/secrets.json:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/secrets.json:ro
       - /mnt/halfToshibaB/docker/data/health-notify/general:/backup-roots/mnt/halfToshibaB/docker/data/health-notify/general:ro
