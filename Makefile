@@ -6,10 +6,13 @@
 #                   that have installed copies — CI, which has none, skips it)
 #   make hooks      install the pre-push hook into .git/hooks (once per clone)
 #
-# `validate` mirrors what CI runs: it copies each stack's .env.example to .env
-# so the required `${VAR:?...}` variables are satisfied, then runs
-# `docker compose config`. It uses a throwaway copy under a temp dir, so your
-# real .env files are never touched and nothing is left behind.
+# `validate` mirrors what CI runs: it copies each stack's .env.example (and
+# unpoller.env.example, where present) into that stack's scratch .env /
+# unpoller.env so the required ${VAR:?...} variables are satisfied, then runs
+# `docker compose config`. The example files are the source of truth for
+# required variables — add a new ${VAR:?...} to the stack's .env.example and
+# every validation path picks it up. It uses a throwaway copy under a temp
+# dir, so your real .env files are never touched and nothing is left behind.
 
 SHELL := /bin/sh
 STACKS := general media desktop
@@ -38,6 +41,9 @@ validate:
 	  cp -R "$$stack" "$$work/$$stack"; \
 	  if [ -f "$$stack/.env.example" ]; then \
 	    cp "$$stack/.env.example" "$$work/$$stack/.env"; \
+	  fi; \
+	  if [ -f "$$stack/unpoller.env.example" ]; then \
+	    cp "$$stack/unpoller.env.example" "$$work/$$stack/unpoller.env"; \
 	  fi; \
 	  ( cd "$$work/$$stack" && docker compose config -q ) \
 	    && printf '  OK  %s\n' "$$stack" \

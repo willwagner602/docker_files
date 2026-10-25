@@ -16,5 +16,7 @@ include:
   - komodo.yml
   - telegram-alerter.yml
   - health-notify-general.yml
+  - unpoller.yml
+  - iot-mdns-reflector.yml
   - uni-analytics.yml
   - uni-live.yml

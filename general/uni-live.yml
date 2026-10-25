@@ -17,11 +17,11 @@ services:
     container_name: uni-live
     restart: unless-stopped
     ports:
-      - "8092:8092"
+      - "127.0.0.1:8092:8092" # LAN-only admin surface; not reachable off-host
     environment:
-      UNIFI_HOST: 10.0.0.16
-      UNIFI_PORT: "8443" # direct LAN IP; the FQDN hairpins out the WAN (no split-horizon DNS) and takes 10–25s
-      UNIFI_USERNAME: unifi-mcp
+      UNIFI_HOST: ${UNIFI_HOST:?set UNIFI_HOST in .env} # e.g. unifi.willwagner.me — LAN shortcut via Pi-hole split-horizon DNS
+      UNIFI_PORT: ${UNIFI_PORT:-443} # 443 through nginx-proxy; 8443 only if pointing at the controller IP directly
+      UNIFI_USERNAME: ${UNIFI_USERNAME:?set UNIFI_USERNAME in .env}
       UNIFI_PASSWORD: ${UNIFI_PASSWORD:?set UNIFI_PASSWORD in .env}
       SERVE_PORT: "8092"
     volumes:
