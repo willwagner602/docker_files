@@ -75,6 +75,7 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | --- | --- |
 | `general/.env.example`, `media/.env.example`, `desktop/.env.example` | Templates for the required per-stack variables. Copy to `.env` in the same directory and replace the values; `.env` is gitignored. |
 | `general/unpoller.env.example` | Template for the UniFi monitoring stack's second env file. Copy to `general/unpoller.env` and fill in real controller + Grafana credentials; rotate together with `UNIFI_PASSWORD` in `general/.env` (they are separate stores for the same controller). |
+| `docs/host-dns.md` | Host-resolver setup for the `*.willwagner.me` split-horizon shortcut — points LAN traffic at this host instead of hairpinning the WAN edge. |
 | `scripts/health-notify.sh` | Health-notification script used by both stacks' notifier containers; mounted read-only into the container. |
 | `scripts/tests/health-notify/` | Test suite for `health-notify.sh`, with stub binaries under `bin/`. Run with `make test`. |
 | `Makefile` | Local entry points: `make test`, `make validate`, `make check`. |
