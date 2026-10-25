@@ -44,7 +44,7 @@
 - ✅ Traffic analysis for device placement (see § Groups)
 - ✅ Lite-16-PoE re-adopted (was state 2 / adopted=False; now state 1, port table visible)
 - ✅ **Phase 1 complete**: `IoT HA` (VLAN 2), `IoT Insecure` (VLAN 3), `IoT Secure` (VLAN 4) all created, corporate purpose, DHCP .100–.199, DNS=10.0.0.16, mDNS off — verified via API read-back 2026-10-22
-- ⬜ Identify what is a *print device* for printer-zone choice (Canon wifi confirmed; Brother not seen — decide placement)
+- ✅ Zone decisions finalized (2026-10-24): Canon printer **stays Zone 1** (trusted print/scan target; Zone 3 would require wider mDNS filter + Trusted→Zone3 print holes, and breaks scan-to-PC); BrosTrend bridge **Zone 4**; Living-Room Apple TV **Zone 3** (wired, US-8-60W port 2); Garage TV Chromecast **Zone 3 per table** but currently absent from controller inventory — locate/power at move time.
 - ⬜ Phase 2: RADIUS enable + table import (below)
 - ⬜ Phase 3: device moves + wired port changes (below)
 - ⬜ Phase 4: firewall lockdown
@@ -155,7 +155,7 @@ OUI (first 3 MAC octets) mapped via the IEEE registry. ❓ = needs human confirm
 |`84:78:48:b8:46:70`|(unnamed)|Ubiquiti Inc|wired|1|Ubiquiti gear|
 |`c4:f7:c1:38:2a:3b`|Living-Room|Apple, Inc.|wired|1|Apple wired (identify)|
 |`fc:49:2d:fc:d7:96`|amazon-e3fb1ddb7|Amazon Technologies Inc.|wifi|3|Amazon device|
-|`50:03:cf:7b:13:98`|(unnamed)|CANON INC.|wifi|❓|Canon (printer?)|
+|`50:03:cf:7b:13:98`|(unnamed)|CANON INC.|wifi|1|Canon printer — stays Zone 1 (2026-10-24): trusted clients print/scan to it; Zone 3 would need a wider mDNS filter plus permanent Trusted→Zone3 631/9100 holes and would kill scan-to-PC|
 |`ec:71:db:8e:30:63`|Garage|Reolink Innovation Limited|wired|4|Reolink cam|
 |`58:d6:1f:1b:04:07`|(unnamed)|Ubiquiti Inc|wired|1|Ubiquiti gear|
 |`7c:d5:66:15:83:30`|AmazonPlug02MC|Amazon Technologies Inc.|wifi|3|Amazon plug|
@@ -174,7 +174,7 @@ OUI (first 3 MAC octets) mapped via the IEEE registry. ❓ = needs human confirm
 |`cc:9e:a2:fc:d5:82`|AmazonPlug13XW|Amazon Technologies Inc.|wifi|3|Amazon plug|
 |`44:00:49:30:ed:6c`|AmazonPlug494X|Amazon Technologies Inc.|wifi|3|Amazon plug|
 |`54:ef:44:30:5e:a5`|Aqara-Hub-M2-5EA5|Lumi United Technology Co., Ltd|wifi|2|Aqara hub|
-|`68:15:79:09:2d:0d`|(unnamed)|BrosTrend Technology LLC|wifi|❓|BrosTrend wifi adapter|
+|`68:15:79:09:2d:0d`|(unnamed)|BrosTrend Technology LLC|wifi|4|BrosTrend outdoor-cam bridge — Zone 4 confirmed (2026-10-24)|
 |`94:3a:91:59:6d:6a`|amazon-9c2f0b661|Amazon Technologies Inc.|wifi|3|Amazon device|
 |`ca:6a:10:00:0c:06`|MyQ-A7F|?|wifi|2|MyQ garage|
 |`b0:4a:39:05:61:b3`|(unnamed)|Beijing Roborock Technology Co., Ltd.|wifi|3|Roborock|
