@@ -48,7 +48,7 @@
 - ⬜ Phase 2: RADIUS enable + table import (below)
 - ⬜ Phase 3: device moves + wired port changes (below)
 - ⬜ Phase 4: firewall lockdown
-- ⬜ PR #56 (mDNS reflector) merge + deploy after Lite-16 port 16 trunk
+- ✅ PR #56 (mDNS reflector) — deployed & running on wbw-ha 2026-10-23, ahead of device moves. Findings: NIC is `enp3s0` (macvlan parents `enp3s0` untagged / `enp3s0.3` tagged, sub-interface created by Docker); statics finalized **10.0.0.222 / 10.0.3.222**; image digest-pinned `sha256:99e7c076…5cfc`; `tmpfs: [/run]` required (flungo/avahi crash-loops without a writable `/var/run`); `SERVER_HOST_NAME=mdns-reflector`; stock ssh/sftp ads suppressed via empty tmpfs over `/etc/avahi/services`. VLAN 3 confirmed arriving on `enp3s0.3` (~5 mcast pkt/s) with **no switch-profile change** — Lite-16 port 16 uses the default profile which carries all VLANs; do not re-profile that port without re-verifying the reflector. Both container MACs named in UniFi (`mdns-reflector-lan` / `mdns-reflector-iot`). PR #56 branch is superseded by main's copy (PR #57); close after comment review.
 
 ## 2. Phase 1 — Build the networks (zero-impact)
 
@@ -95,7 +95,7 @@ All in-path hardware is Ubiquiti-managed — no unmanaged switch anywhere to str
 | Flex Mini `24:5a:4c:...` port 4 | ff-18919 | **Native VLAN 3** | single-device port; clean Zone-3 isolation, no trunk needed |
 | US-8-60W port 7 | desk Flex Mini uplink | **add Tagged VLAN 3** | carries VLAN 3 upstream to the desk switch |
 | US-8-60W port 2 | Living-Room Apple TV | **Native VLAN 3** | single-device port; only after mDNS reflector is live |
-| Lite-16 port 16 | wbw-ha | **add Tagged VLAN 3** (native stays 1) | prereq for PR #56 reflector macvlan |
+| Lite-16 port 16 | wbw-ha | **default profile carries all VLANs — leave as-is** | reflector's `enp3s0.3` rides the default profile; verified live 2026-10-23 |
 | Lite-16 port 13 | wbw-media | none | stays Zone 1 |
 | AP ports (Lite-16 p2, US-8-60W p5/p8) | APs | none | wifi handled entirely by RADIUS |
 
@@ -125,7 +125,7 @@ HA-side binary_sensor group of ~20 HA-visible devices as a "before" heartbeat; t
 | 4 IoT-Sec | → per-camera IP only | deny | deny | — | deny (confirm cloud deps first) |
 
 Plus Pi-hole reachable from all zones on :53 (UDP+TCP) only.
-Plus Zone-3 mDNS reflector statics (`10.0.0.65` ↔ `10.0.3.65`) can send/receive multicast 224.0.0.251:5353 in both zones.
+Plus Zone-3 mDNS reflector statics (`10.0.0.222` ↔ `10.0.3.222`) can send/receive multicast 224.0.0.251:5353 in both zones.
 
 ## 6. Phase 5 — Cleanup & docs
 - Delete nothing until 2 weeks zero-hit.
