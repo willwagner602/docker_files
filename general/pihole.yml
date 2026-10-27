@@ -11,6 +11,17 @@ services:
       TZ: 'America/Chicago'
       FTLCONF_webserver_api_password: ${PIHOLE_WEBPASSWORD:?Set PIHOLE_WEBPASSWORD in .env}
       FTLCONF_dns_listeningMode: 'all'
+      # Split-horizon DNS: these are re-applied (forced) on EVERY container
+      # start, so this file is authoritative for them — edits made in the web
+      # UI to dns.hosts or misc.dnsmasq_lines are overwritten on restart.
+      # The wildcard keeps every *.willwagner.me subdomain LAN-local; exact
+      # dns.hosts entries override it for names that live elsewhere (usg).
+      # See docs/host-dns.md for the host-resolver half of this setup.
+      FTLCONF_dns_hosts_0: '10.0.0.1 usg.willwagner.me'
+      FTLCONF_dns_hosts_1: '10.0.0.16 willwagner.me'
+      FTLCONF_dns_hosts_2: '10.0.0.16 wbw-ha.willwagner.me'
+      FTLCONF_dns_hosts_3: '10.0.0.16 unifi.willwagner.me'
+      FTLCONF_misc_dnsmasq_lines_0: 'address=/willwagner.me/10.0.0.16'
     volumes:
       - /mnt/halfToshibaB/docker/data/pihole:/etc/pihole
       - /mnt/halfToshibaB/docker/data/dnsmasq:/etc/dnsmasq.d

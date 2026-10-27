@@ -30,7 +30,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
+      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/unpoller/influx /mnt/halfToshibaB/docker/data/unpoller/grafana /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
       # /mnt/halfToshibaB/docker/data/mindwtr was dropped 2026-10 with the
       # decommissioned Mindwtr Cloud service; the on-host directory is slated
       # for deletion. Deliberate removal — do not re-add.
@@ -81,6 +81,9 @@ services:
       - /mnt/halfToshibaB/docker/data/letsencrypt:/backup-roots/mnt/halfToshibaB/docker/data/letsencrypt:ro
       - /mnt/halfToshibaB/docker/data/mongo:/backup-roots/mnt/halfToshibaB/docker/data/mongo:ro
       - /mnt/halfToshibaB/docker/data/unifi-config:/backup-roots/mnt/halfToshibaB/docker/data/unifi-config:ro
+      - /mnt/halfToshibaB/docker/data/uni-analytics:/backup-roots/mnt/halfToshibaB/docker/data/uni-analytics:ro
+      - /mnt/halfToshibaB/docker/data/unpoller/influx:/backup-roots/mnt/halfToshibaB/docker/data/unpoller/influx:ro
+      - /mnt/halfToshibaB/docker/data/unpoller/grafana:/backup-roots/mnt/halfToshibaB/docker/data/unpoller/grafana:ro
       - /mnt/halfToshibaB/docker/data/couchdb:/backup-roots/mnt/halfToshibaB/docker/data/couchdb:ro
       - /mnt/halfToshibaB/docker/data/job-digest/state:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/state:ro
       - /mnt/halfToshibaB/docker/data/job-digest/secrets.json:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/secrets.json:ro

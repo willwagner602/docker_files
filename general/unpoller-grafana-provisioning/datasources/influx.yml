@@ -1,0 +1,11 @@
+apiVersion: 1
+datasources:
+  - name: unifi
+    type: influxdb
+    access: proxy
+    url: http://unifi-influxdb:8086
+    isDefault: true
+    editable: true
+    jsonData:
+      dbName: unifi
+      httpMode: GET

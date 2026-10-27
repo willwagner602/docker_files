@@ -19,9 +19,16 @@
 # KEEP_DAILY/KEEP_WEEKLY/KEEP_MONTHLY (default 7/11/9 = 27 restore points).
 #
 # Manual run, e.g. for a stop-first consistent copy of the databases:
-#   docker compose stop couchdb unifi-db
+#   docker compose stop couchdb unifi-db unifi-influxdb
 #   docker compose run --rm -e BACKUP_NOW=1 backup
-#   docker compose start couchdb unifi-db
+#   docker compose start couchdb unifi-db unifi-influxdb
+# InfluxDB (unpoller stack): unlike SQLite (restaged via VACUUM INTO) and
+# Postgres (pg_dump), InfluxDB 1.8 TSM+WAL files have no in-archive consistency
+# mechanism here — the 04:00 hot copy can in principle catch a torn WAL frame.
+# Stop unifi-influxdb first for a guaranteed-consistent archive (command above);
+# the nightly hot copy is a best-effort history that the freshness of /wal
+# makes near-consistent in practice (writes are daily scrape batches, not
+# continuous), but verify with `influxd inspect` before trusting a restore.
 #
 # Output: $DEST_DIR/$ROLE-backup-YYYYMMDDTHHMMSSZ.zip, mirroring the host
 # layout, with named volumes under docker-volumes/<volume-name> and a

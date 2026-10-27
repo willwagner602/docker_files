@@ -92,16 +92,26 @@ jobs:
           KOMODO_API_SECRET: ci-placeholder
         run: |
           set -eu
-          # Use the example file if present so local conventions stay in sync,
-          # but rely on the env block above as the source of truth.
+          # The example env files are the de facto source of truth for required
+          # variables (see stacks/*/.env.example); the env: block above covers
+          # only a subset (CI's own minimum). If you add a new required
+          # ${VAR:?...} to any stack, add it to that stack's .env.example —
+          # CI and `make validate`/`make test` all seed from the example files.
           if [ -f .env.example ]; then
             cp .env.example .env
             echo "seeded .env from .env.example"
           fi
           # Some services use additional file unions of the same pattern
-          # (e.g. woodpecker.env); seed those from their .example files too.
+          # (e.g. woodpecker.env, unpoller.env); seed those from their
+          # .example files too.
           for ex in *.example; do
             [ -f "$ex" ] || continue
+            # Refuse REPLACE_ME so a forgotten password cannot validate in CI
+            # while silently breaking locally (see finding f7).
+            if grep -qE '=REPLACE_ME( |$)' "$ex" 2>/dev/null && [ "${ALLOW_PLACEHOLDER_CREDS:-}" != "1" ]; then
+              echo "ERROR: $ex still contains REPLACE_ME credentials; fill real values before committing CI" >&2
+              exit 1
+            fi
             cp "$ex" "${ex%.example}"
           done
           docker compose version
