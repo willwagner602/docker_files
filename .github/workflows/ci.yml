@@ -98,6 +98,12 @@ jobs:
             cp .env.example .env
             echo "seeded .env from .env.example"
           fi
+          # Some services use additional file unions of the same pattern
+          # (e.g. woodpecker.env); seed those from their .example files too.
+          for ex in *.example; do
+            [ -f "$ex" ] || continue
+            cp "$ex" "${ex%.example}"
+          done
           docker compose version
           docker compose config -q
           echo "OK: ${{ matrix.stack }} validates"
