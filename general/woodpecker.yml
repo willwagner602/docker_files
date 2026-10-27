@@ -83,6 +83,7 @@ services:
 networks:
   npm:
     external: true
+    name: npm
   wp:
     name: woodpecker-net
     driver: bridge
