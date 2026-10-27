@@ -81,7 +81,9 @@ services:
       - ./woodpecker-artifacts-htpasswd:/etc/nginx/htpasswd:ro
 
 networks:
-  npm: {}
+  npm:
+    name: npm
+    driver: bridge
   wp:
     name: woodpecker-net
     driver: bridge
