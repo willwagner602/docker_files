@@ -18,3 +18,4 @@ include:
   - health-notify-general.yml
   - uni-analytics.yml
   - uni-live.yml
+  - woodpecker.yml
