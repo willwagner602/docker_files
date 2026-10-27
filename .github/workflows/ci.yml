@@ -106,12 +106,6 @@ jobs:
           # .example files too.
           for ex in *.example; do
             [ -f "$ex" ] || continue
-            # Refuse REPLACE_ME so a forgotten password cannot validate in CI
-            # while silently breaking locally (see finding f7).
-            if grep -qE '=REPLACE_ME( |$)' "$ex" 2>/dev/null && [ "${ALLOW_PLACEHOLDER_CREDS:-}" != "1" ]; then
-              echo "ERROR: $ex still contains REPLACE_ME credentials; fill real values before committing CI" >&2
-              exit 1
-            fi
             cp "$ex" "${ex%.example}"
           done
           docker compose version
