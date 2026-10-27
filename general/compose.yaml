@@ -20,3 +20,4 @@ include:
   - iot-mdns-reflector.yml
   - uni-analytics.yml
   - uni-live.yml
+  - woodpecker.yml

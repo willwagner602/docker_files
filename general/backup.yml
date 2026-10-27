@@ -35,17 +35,20 @@ services:
       # decommissioned Mindwtr Cloud service; the on-host directory is slated
       # for deletion. Deliberate removal — do not re-add.
       # Named volumes to back up (logical compose names).
-      - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys
+      - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys woodpecker-agent-conf
       # Service mounts deliberately NOT backed up, with the reason:
       #   /proc — host process table mounted for the Komodo agent.
       #   /etc/komodo — Periphery root dir for Komodo-managed stacks; empty
       #     in this monitoring-only setup.
       #   /etc/komodo/backups — Komodo Core's own dated DB dumps; redundant
       #     with the komodo-mongo-* volumes that are backed up directly.
+      #   woodpecker-data/artifacts — CI state (SQLite db, job logs, pipeline
+      #     failure artifacts); reprovisionable, large and append-only, so
+      #     excluded like other CI scratch. woodpecker-agent-conf IS backed up.
       # Uni-analytics writes daily diagnostic snapshots (JSONL device↔VLAN
       # records for the IoT migration); they're derivable operating data —
       # exclude to keep backup zips lean, same rationale as FTDC diagnostic.data.
-      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo /mnt/halfToshibaB/docker/data/uni-analytics
+      - EXCLUDED_MOUNTS=/var/run/docker.sock /etc/localtime /lib/modules /proc /etc/komodo /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/woodpecker-data /mnt/halfToshibaB/docker/data/woodpecker-artifacts
       # Backup paths that no service mounts (repo copy for restorability).
       # The tracked job-digest config and the test-support scripts ride in via
       # the repo copy; their git history is the backup.
@@ -93,6 +96,7 @@ services:
       - mosquitto-conf:/volume-roots/mosquitto-conf:ro
       - otr-config:/volume-roots/otr-config:ro
       - otr-store:/volume-roots/otr-store:ro
+      - woodpecker-agent-conf:/volume-roots/woodpecker-agent-conf:ro
       - tailscale-state:/volume-roots/tailscale-state:ro
       - etc_wireguard:/volume-roots/etc_wireguard:ro
       - zwave-config:/volume-roots/zwave-config:ro

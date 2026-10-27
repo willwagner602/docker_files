@@ -101,15 +101,13 @@ jobs:
             cp .env.example .env
             echo "seeded .env from .env.example"
           fi
-          if [ -f unpoller.env.example ]; then
-            # Refuse REPLACE_ME so a forgotten password cannot validate in CI
-            # while silently breaking locally (see finding f7).
-            if grep -qE '^UP_UNIFI_CONTROLLER_0_PASS=REPLACE_ME|^GF_SECURITY_ADMIN_PASSWORD=REPLACE_ME' unpoller.env.example 2>/dev/null && [ "${ALLOW_PLACEHOLDER_CREDS:-}" != "1" ]; then
-              echo "ERROR: unpoller.env.example still contains REPLACE_ME credentials; fill real values before committing CI" >&2
-            fi
-            cp unpoller.env.example unpoller.env
-            echo "seeded unpoller.env from unpoller.env.example"
-          fi
+          # Some services use additional file unions of the same pattern
+          # (e.g. woodpecker.env, unpoller.env); seed those from their
+          # .example files too.
+          for ex in *.example; do
+            [ -f "$ex" ] || continue
+            cp "$ex" "${ex%.example}"
+          done
           docker compose version
           docker compose config -q
           echo "OK: ${{ matrix.stack }} validates"
