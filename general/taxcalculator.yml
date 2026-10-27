@@ -1,0 +1,33 @@
+# Tax Calculator (willwagner602/TaxCalculator) on the "general" docker server.
+#
+# One Node process serves the built SPA and the SQLite API; the container
+# listens on 8080 and /api/health is the readiness endpoint. The app is
+# single-household with no login — keep it on the trusted LAN.
+#
+# Deploy from this repo's checkout on wbw-ha:
+#   docker compose -f taxcalculator.yml pull && docker compose -f taxcalculator.yml up -d
+#
+# Host port 8084 (8083 is OwnTracks in this stack) forwards to the container's
+# 8080.
+#
+# Data: the SQLite database lives in the image's /data volume, bind-mounted
+# here to /mnt/halfToshibaB/docker/data/taxcalculator (server.mjs defaults to
+# /data/taxcalculator.sqlite). The GHCR package is private, like
+# job-search-tooling: the host must already be logged in to ghcr.io for pulls.
+services:
+  taxcalculator:
+    image: ghcr.io/willwagner602/taxcalculator:latest
+    pull_policy: always
+    container_name: taxcalculator
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      TZ: America/Los_Angeles
+    ports:
+      - "8084:8080"
+    volumes:
+      - /mnt/halfToshibaB/docker/data/taxcalculator:/data
