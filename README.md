@@ -53,6 +53,7 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | `iot-mdns-reflector.yml` | mDNS reflector | Bridges mDNS between the trusted LAN and the IoT VLAN during migration; see the prerequisites in the file's header comments. |
 | `uni-analytics.yml` | UniFi snapshot | Nightly per-client VLAN/traffic JSONL snapshot under `/mnt/halfToshibaB/docker/data/uni-analytics`; loops internally on `SNAPSHOT_HOUR` (default 14:00 local, one failed-scrape retry per hour). |
 | `uni-live.yml` | UniFi live view | Auto-refreshing webpage/JSON of every client the controller currently sees; loopback-published on `127.0.0.1:8092`, LAN-only admin surface. |
+| `taxcalculator.yml` | Tax Calculator | Independent service using the `ghcr.io/willwagner602/taxcalculator` image; SPA plus SQLite API published on `:8084`, database bind-mounted under `/mnt/halfToshibaB/docker/data/taxcalculator`. Single-household and unauthenticated — trusted LAN only. |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 

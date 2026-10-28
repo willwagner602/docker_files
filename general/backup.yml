@@ -30,7 +30,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/unpoller/influx /mnt/halfToshibaB/docker/data/unpoller/grafana /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
+      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/unpoller/influx /mnt/halfToshibaB/docker/data/unpoller/grafana /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /mnt/halfToshibaB/docker/data/taxcalculator /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
       # /mnt/halfToshibaB/docker/data/mindwtr was dropped 2026-10 with the
       # decommissioned Mindwtr Cloud service; the on-host directory is slated
       # for deletion. Deliberate removal — do not re-add.
@@ -62,7 +62,7 @@ services:
       # archives and is no longer on disk; restored copies may still contain it.
       # Job-digest production-artifacts/ are intermediate per-run outputs; its
       # durable state and completed digests remain included.
-      - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *pihole/*-wal *pihole/*-shm *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *mnt/halfToshibaB/docker/data/homeassistant/backups/* *home-assistant.log* *pihole/pihole-FTL.db *diagnostic.data/* *mongo/db.before-raw-recovery-*/* *job-digest/state/production-artifacts/*
+      - EXCLUDES=*home-assistant_v2.db-wal *home-assistant_v2.db-shm *pihole/*-wal *pihole/*-shm *home-assistant_v2.db.corrupt.* *home-assistant_v2.db-wal.corrupt.* *home-assistant_v2.db-shm.corrupt.* *mnt/halfToshibaB/docker/data/homeassistant/backups/* *home-assistant.log* *pihole/pihole-FTL.db *diagnostic.data/* *mongo/db.before-raw-recovery-*/* *job-digest/state/production-artifacts/* *taxcalculator.sqlite-wal *taxcalculator.sqlite-shm
       # The run lock lives on local disk (mounted at /locks), OUTSIDE the
       # synced google-drive mirror, so the backup can never fence the bisync
       # the way the 2026-10-12 ".backup-lock/pid" collision did (media host
@@ -88,6 +88,7 @@ services:
       - /mnt/halfToshibaB/docker/data/job-digest/state:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/state:ro
       - /mnt/halfToshibaB/docker/data/job-digest/secrets.json:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/secrets.json:ro
       - /mnt/halfToshibaB/docker/data/health-notify/general:/backup-roots/mnt/halfToshibaB/docker/data/health-notify/general:ro
+      - /mnt/halfToshibaB/docker/data/taxcalculator:/backup-roots/mnt/halfToshibaB/docker/data/taxcalculator:ro
       - /home/wbw/work/job-search-tooling:/backup-roots/home/wbw/work/job-search-tooling:ro
       - /home/wbw/work/docker_files:/backup-roots/home/wbw/work/docker_files:ro
       # --- protected named volumes (read-only) ---
