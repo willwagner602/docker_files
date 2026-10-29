@@ -57,11 +57,10 @@ services:
       WOODPECKER_LOG_LEVEL: info
       # Mounted into every pipeline container so steps can drop failure
       # artifacts (e.g. Playwright reports); the artifacts service serves it.
-      WOODPECKER_BACKEND_DOCKER_VOLUMES: /mnt/halfToshibaB/docker/data/woodpecker-artifacts:/woodpecker-artifacts
-      # Docker CLI socket for pipeline steps (docker-smoke builds/runs the
-      # production image in steps). Default volumes are applied to every
-      # workflow container, so this works even for untrusted repos.
-      WOODPECKER_DEFAULT_VOLUMES: /var/run/docker.sock:/var/run/docker.sock
+      # The docker socket lets steps use the docker CLI (docker-smoke builds/
+      # runs the production image). Backend volumes apply to every step
+      # container, even for untrusted repos.
+      WOODPECKER_BACKEND_DOCKER_VOLUMES: /mnt/halfToshibaB/docker/data/woodpecker-artifacts:/woodpecker-artifacts,/var/run/docker.sock:/var/run/docker.sock
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - woodpecker-agent-conf:/etc/woodpecker
