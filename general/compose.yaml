@@ -21,4 +21,5 @@ include:
   - uni-analytics.yml
   - uni-live.yml
   - woodpecker.yml
+  - registry.yml
   - taxcalculator.yml

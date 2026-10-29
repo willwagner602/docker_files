@@ -30,7 +30,7 @@ services:
       - KEEP_WEEKLY=11
       - KEEP_MONTHLY=9
       # Host paths to back up, mirroring the host layout inside the zip.
-      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/unpoller/influx /mnt/halfToshibaB/docker/data/unpoller/grafana /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /mnt/halfToshibaB/docker/data/taxcalculator /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
+      - BACKUP_PATHS=/mnt/halfToshibaB/docker/data/homeassistant /mnt/halfToshibaB/docker/data/pihole /mnt/halfToshibaB/docker/data/dnsmasq /mnt/halfToshibaB/docker/data/nginx-proxy-data /mnt/halfToshibaB/docker/data/letsencrypt /mnt/halfToshibaB/docker/data/mongo /mnt/halfToshibaB/docker/data/unifi-config /mnt/halfToshibaB/docker/data/uni-analytics /mnt/halfToshibaB/docker/data/unpoller/influx /mnt/halfToshibaB/docker/data/unpoller/grafana /mnt/halfToshibaB/docker/data/couchdb /mnt/halfToshibaB/docker/data/job-digest/state /mnt/halfToshibaB/docker/data/job-digest/secrets.json /mnt/halfToshibaB/docker/data/health-notify/general /mnt/halfToshibaB/docker/data/taxcalculator /mnt/halfToshibaB/docker/data/registry /home/wbw/work/job-search-tooling /home/wbw/work/docker_files
       # /mnt/halfToshibaB/docker/data/mindwtr was dropped 2026-10 with the
       # decommissioned Mindwtr Cloud service; the on-host directory is slated
       # for deletion. Deliberate removal — do not re-add.
@@ -89,6 +89,7 @@ services:
       - /mnt/halfToshibaB/docker/data/job-digest/secrets.json:/backup-roots/mnt/halfToshibaB/docker/data/job-digest/secrets.json:ro
       - /mnt/halfToshibaB/docker/data/health-notify/general:/backup-roots/mnt/halfToshibaB/docker/data/health-notify/general:ro
       - /mnt/halfToshibaB/docker/data/taxcalculator:/backup-roots/mnt/halfToshibaB/docker/data/taxcalculator:ro
+      - /mnt/halfToshibaB/docker/data/registry:/backup-roots/mnt/halfToshibaB/docker/data/registry:ro
       - /home/wbw/work/job-search-tooling:/backup-roots/home/wbw/work/job-search-tooling:ro
       - /home/wbw/work/docker_files:/backup-roots/home/wbw/work/docker_files:ro
       # --- protected named volumes (read-only) ---
