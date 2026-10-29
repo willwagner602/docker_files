@@ -29,5 +29,12 @@ services:
       TZ: America/Los_Angeles
     ports:
       - "8084:8080"
+    networks:
+      - npm
     volumes:
       - /mnt/halfToshibaB/docker/data/taxcalculator:/data
+
+networks:
+  npm:
+    name: npm
+    driver: bridge

@@ -1,7 +1,7 @@
 services:
   pihole:
     container_name: pihole
-    image: pihole/pihole:latest@sha256:70a9c11171ded2eee735d88c127996da209284a329d50f5ae59c06b861d401b3
+    image: pihole/pihole:2026.10.0
     ports:
       - "10.0.0.16:53:53/tcp"
       - "10.0.0.16:53:53/udp"
@@ -17,11 +17,8 @@ services:
       # The wildcard keeps every *.willwagner.me subdomain LAN-local; exact
       # dns.hosts entries override it for names that live elsewhere (usg).
       # See docs/host-dns.md for the host-resolver half of this setup.
-      FTLCONF_dns_hosts_0: '10.0.0.1 usg.willwagner.me'
-      FTLCONF_dns_hosts_1: '10.0.0.16 willwagner.me'
-      FTLCONF_dns_hosts_2: '10.0.0.16 wbw-ha.willwagner.me'
-      FTLCONF_dns_hosts_3: '10.0.0.16 unifi.willwagner.me'
-      FTLCONF_misc_dnsmasq_lines_0: 'address=/willwagner.me/10.0.0.16'
+      FTLCONF_dns_hosts: '10.0.0.1 usg.willwagner.me;10.0.0.16 willwagner.me;10.0.0.16 wbw-ha.willwagner.me;10.0.0.16 unifi.willwagner.me'
+      FTLCONF_misc_dnsmasq_lines: 'address=/willwagner.me/10.0.0.16'
     volumes:
       - /mnt/halfToshibaB/docker/data/pihole:/etc/pihole
       - /mnt/halfToshibaB/docker/data/dnsmasq:/etc/dnsmasq.d
