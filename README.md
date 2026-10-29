@@ -54,6 +54,7 @@ read-only by contrast (`POST=0`, `ALLOW_RESTARTS=0`).
 | `uni-analytics.yml` | UniFi snapshot | Nightly per-client VLAN/traffic JSONL snapshot under `/mnt/halfToshibaB/docker/data/uni-analytics`; loops internally on `SNAPSHOT_HOUR` (default 14:00 local, one failed-scrape retry per hour). |
 | `uni-live.yml` | UniFi live view | Auto-refreshing webpage/JSON of every client the controller currently sees; loopback-published on `127.0.0.1:8092`, LAN-only admin surface. |
 | `taxcalculator.yml` | Tax Calculator | Independent service using the `ghcr.io/willwagner602/taxcalculator` image; SPA plus SQLite API published on `:8084`, database bind-mounted under `/mnt/halfToshibaB/docker/data/taxcalculator`. Single-household and unauthenticated — trusted LAN only. |
+| `registry.yml` | Local Docker registry | The stock `registry:2` image store behind a dedicated nginx basic-auth front (`general-registry-auth`) on the shared `npm` network — nginx-proxy-manager serves `registry.willwagner.me` with TLS and routes to the front. Pulls need the htpasswd credential from anywhere; pushes additionally require a trusted LAN source, and the registry runs with `REGISTRY_STORAGE_DELETE_ENABLED=false` (append-only store). Needs `general/registry.env` (copy from `registry.env.example`) and `general/registry.htpasswd` (see the header in `registry.yml`); data bind-mounted under `/mnt/halfToshibaB/docker/data/registry`. Woodpecker pipelines push here after the smoke test (see the `.woodpecker/publish.yml` lane in repos that publish, currently TaxCalculator). |
 
 `general/compose.yaml` is the canonical general-server deployment. It sets the stable project name `general` and includes every service-level compose file. Shared networks retain their fixed names so services from separate files can communicate within the combined deployment.
 
@@ -110,6 +111,7 @@ environment, not from `desktop/.env` (Polytoken never reads that file; see
 | --- | --- |
 | `general/.env.example`, `media/.env.example`, `desktop/.env.example` | Templates for the required per-stack variables. Copy to `.env` in the same directory and replace the values; `.env` is gitignored. |
 | `general/unpoller.env.example` | Template for the UniFi monitoring stack's second env file. Copy to `general/unpoller.env` and fill in real controller + Grafana credentials; rotate together with `UNIFI_PASSWORD` in `general/.env` (they are separate stores for the same controller). |
+| `general/registry.env.example` | Template for the local docker registry env file. Copy to `general/registry.env` and set `REGISTRY_HTTP_SECRET` (`openssl rand -hex 32`). The auth front also needs `general/registry.htpasswd` (never committed; see the header in `general/registry.yml`). |
 | `docs/host-dns.md` | Host-resolver setup for the `*.willwagner.me` split-horizon shortcut — points LAN traffic at this host instead of hairpinning the WAN edge. |
 | `scripts/health-notify.sh` | Health-notification script used by both stacks' notifier containers; mounted read-only into the container. |
 | `scripts/tests/health-notify/` | Test suite for `health-notify.sh`, with stub binaries under `bin/`. Run with `make test`. |

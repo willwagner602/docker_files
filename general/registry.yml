@@ -1,0 +1,79 @@
+# Docker image registry (registry:2) for wbw-ha, with an nginx basic-auth front.
+#
+# Deployed from this repo's checkout on wbw-ha:
+#   docker compose -f registry.yml up -d
+#
+# Services:
+#   registry  — the stock Docker Distribution registry, storing image blobs and
+#               manifests under /var/lib/registry on the shared general-server
+#               data volume. Reached only by the nginx-auth front on the shared
+#               `npm` network; no ports are published to the host.
+#   auth      — nginx terminating nothing by itself; it applies htpasswd basic
+#               auth and method filtering (writes restricted to the LAN), then
+#               proxies to the registry. nginx-proxy-manager routes
+#               registry.willwagner.me -> http://general-registry-auth:80
+#               with TLS, so docker clients speak HTTPS to NPM and plain HTTP
+#               to this nginx.
+#
+# Docker clients: docker login registry.willwagner.me with the credentials in
+# the untracked htpasswd file.
+#
+# Push/pull split: pulls (GET/HEAD) require the htpasswd credential from
+# anywhere; pushes (PUT/PATCH/POST/DELETE) are additionally restricted to
+# trusted LAN sources so a leaked credential alone cannot push from the WAN.
+# Delete was already disabled in the registry itself: the store is append-only
+# even if a credential leaks.
+#
+# Required untracked file next to this one (never commit):
+#   registry.htpasswd — htpasswd entries (one per client):
+#     printf '%s\n' 'user:'"$(openssl passwd -apr1)" | tee registry.htpasswd
+#     chmod 600 registry.htpasswd
+#
+# Backups: /mnt/halfToshibaB/docker/data/registry is a plain directory tree of
+# layer blobs and manifests; rsync it like the other data volumes.
+services:
+  registry:
+    container_name: general-registry
+    image: registry:2
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      # Append-only store: DELETE endpoints are refused even with valid
+      # credentials, so a leaked htpasswd entry cannot wipe image history.
+      REGISTRY_STORAGE_DELETE_ENABLED: "false"
+      # The htpasswd auth happens at the nginx front; the registry itself
+      # trusts only traffic from that front on the shared network.
+      REGISTRY_HTTP_SECRET: "${REGISTRY_HTTP_SECRET:?REGISTRY_HTTP_SECRET must be set (see registry.env.example)}"
+    env_file: registry.env
+    volumes:
+      - /mnt/halfToshibaB/docker/data/registry:/var/lib/registry
+    networks:
+      - npm
+      - registry-net
+
+  registry-auth:
+    container_name: general-registry-auth
+    image: nginx:alpine
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    volumes:
+      - ./registry-site.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./registry.htpasswd:/etc/nginx/htpasswd:ro
+    networks:
+      - registry-net
+
+networks:
+  registry-net:
+    name: registry-net
+    driver: bridge
+  npm:
+    name: npm
+    driver: bridge
