@@ -27,7 +27,10 @@
 # Required untracked file next to this one (never commit):
 #   registry.htpasswd — htpasswd entries (one per client):
 #     printf '%s\n' 'user:'"$(openssl passwd -apr1)" | tee registry.htpasswd
-#     chmod 600 registry.htpasswd
+#     chmod 644 registry.htpasswd
+#   World-readable is required: the nginx-front's worker processes run as a
+#   low-privilege user, and a 600 file mounted in is unreadable to them (auth
+#   then fails with 500s). The file holds password hashes, not plaintext.
 #
 # Backups: /mnt/halfToshibaB/docker/data/registry is a plain directory tree of
 # layer blobs and manifests; rsync it like the other data volumes.
