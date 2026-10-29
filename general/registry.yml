@@ -71,6 +71,9 @@ services:
       - ./registry-site.conf:/etc/nginx/conf.d/default.conf:ro
       - ./registry.htpasswd:/etc/nginx/htpasswd:ro
     networks:
+      # npm: nginx-proxy-manager resolves this container by name to proxy -> it.
+      # registry-net: this front proxies to the registry itself over this net.
+      - npm
       - registry-net
 
 networks:
