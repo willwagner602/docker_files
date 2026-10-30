@@ -7,6 +7,7 @@
 #
 #   PATH_ROOT (default /backup-roots)  host paths, preserving the host layout
 #   VOLUME_ROOT (default /volume-roots) named volumes, one dir per volume name
+#   EXCLUDED_VOLUMES (default empty) live named volumes deliberately not copied
 #
 # Everything the backup must cover is declared in the backup service's
 # environment (BACKUP_PATHS / BACKUP_VOLUMES), which doubles as the machine
@@ -42,6 +43,7 @@ ROLE=${ROLE:?ROLE not set (general or media)}
 DEST_DIR=${DEST_DIR:?DEST_DIR not set}
 BACKUP_PATHS=${BACKUP_PATHS:-}
 BACKUP_VOLUMES=${BACKUP_VOLUMES:-}
+EXCLUDED_VOLUMES=${EXCLUDED_VOLUMES:-}
 BACKUP_AT=${BACKUP_AT:-04:00}
 KEEP_DAILY=${KEEP_DAILY:-7}
 KEEP_WEEKLY=${KEEP_WEEKLY:-11}

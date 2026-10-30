@@ -68,6 +68,7 @@ required = [
     "KEEP_MONTHLY",
     "BACKUP_PATHS",
     "EXCLUDED_MOUNTS",
+    "EXCLUDED_VOLUMES",
     "EXTRA_BACKUP_PATHS",
 ]
 for key in required:
@@ -83,6 +84,7 @@ if problems:
 paths = [norm(p) for p in env["BACKUP_PATHS"].split()]
 vols = env["BACKUP_VOLUMES"].split()
 excluded = [norm(p) for p in env["EXCLUDED_MOUNTS"].split()]
+excluded_vols = env["EXCLUDED_VOLUMES"].split()
 extras = [norm(p) for p in env["EXTRA_BACKUP_PATHS"].split()]
 
 bind_mounts = {}  # service -> list of sources
@@ -125,8 +127,8 @@ for svc, srcs in sorted(bind_mounts.items()):
 # 3a. every mounted volume is declared for backup
 for svc, srcs in sorted(volume_mounts.items()):
     for src in srcs:
-        if src not in vols:
-            problems.append(f"service {svc} uses volume {src} which is not in BACKUP_VOLUMES")
+        if src not in vols and src not in excluded_vols:
+            problems.append(f"service {svc} uses volume {src} which is not in BACKUP_VOLUMES or EXCLUDED_VOLUMES")
 # 3b. every declared backup volume exists in the stack
 for v in vols:
     if v not in volumes:

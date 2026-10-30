@@ -35,6 +35,7 @@ services:
       # No named volumes are in use by any media service, except Komodo's.
       # The Komodo agent keys live in the named komodo-keys volume.
       - BACKUP_VOLUMES=komodo-keys
+      - EXCLUDED_VOLUMES=
       # Service mounts deliberately NOT backed up, with the reason:
       #   /bigdisk/plex, /bigdisk/plex/tv, /bigdisk/plex/movies,
       #     /bigdisk/plex/downloads/*, /bigdisk/plex/xxx

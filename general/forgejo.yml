@@ -1,0 +1,141 @@
+# Forgejo and PostgreSQL for the general Docker host.
+#
+# Bootstrap privately: the web port is host-loopback only, and registration is
+# disabled. Create the first admin with `forgejo admin user create` inside the
+# server container. Only after confirming that registration remains disabled
+# should NPM publish forgejo.willwagner.me to http://forgejo:3000.
+#
+# Git SSH is LAN-only on 10.0.0.16:222. Do not forward this port from the WAN
+# unless public SSH access is explicitly desired.
+services:
+  forgejo-db:
+    image: postgres:17-alpine
+    container_name: general-forgejo-db
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file:
+      - forgejo.env
+    environment:
+      POSTGRES_DB: forgejo
+      POSTGRES_USER: forgejo
+    volumes:
+      - forgejo-postgres-data:/var/lib/postgresql/data
+    networks:
+      - forgejo
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U forgejo -d forgejo"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  forgejo-db-dump:
+    image: postgres:17-alpine
+    container_name: general-forgejo-db-dump
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    env_file: forgejo.env
+    depends_on:
+      forgejo-db:
+        condition: service_healthy
+    volumes:
+      - forgejo-db-dumps:/dumps
+    healthcheck:
+      test: ["CMD-SHELL", "test -s /dumps/forgejo-all.sql && find /dumps/forgejo-all.sql -mmin -1500 -print -quit | grep -q ."]
+      interval: 5m
+      timeout: 10s
+      retries: 3
+      start_period: 5m
+    networks:
+      - forgejo
+    command: >-
+      sh -c 'while :; do
+      if pg_dumpall -h forgejo-db -U forgejo --clean --if-exists > /dumps/forgejo-all.sql.part
+      && mv /dumps/forgejo-all.sql.part /dumps/forgejo-all.sql; then
+      echo "$$(date -u +%FT%TZ) Forgejo PostgreSQL dump ok"; sleep 86400;
+      else
+      echo "$$(date -u +%FT%TZ) Forgejo PostgreSQL dump FAILED; retrying in 5m";
+      rm -f /dumps/forgejo-all.sql.part; sleep 300; fi; done'
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:17
+    container_name: forgejo
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      forgejo-db:
+        condition: service_healthy
+    env_file:
+      - forgejo.env
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: forgejo-db:5432
+      FORGEJO__database__NAME: forgejo
+      FORGEJO__database__USER: forgejo
+      FORGEJO__server__DOMAIN: forgejo.willwagner.me
+      FORGEJO__server__ROOT_URL: https://forgejo.willwagner.me/
+      FORGEJO__server__HTTP_ADDR: 0.0.0.0
+      FORGEJO__server__HTTP_PORT: "3000"
+      FORGEJO__server__SSH_DOMAIN: forgejo.willwagner.me
+      FORGEJO__server__SSH_PORT: "222"
+      FORGEJO__server__SSH_LISTEN_PORT: "22"
+      FORGEJO__server__START_SSH_SERVER: "false"
+      FORGEJO__service__DISABLE_REGISTRATION: "true"
+      FORGEJO__service__ENABLE_OPENID_SIGNIN: "false"
+      FORGEJO__repository__DEFAULT_PRIVATE: private
+      FORGEJO__security__INSTALL_LOCK: "true"
+      FORGEJO__actions__ENABLED: "true"
+    ports:
+      - "127.0.0.1:3002:3000"
+      - "10.0.0.16:222:22"
+    volumes:
+      - forgejo-data:/data
+    networks:
+      - forgejo
+      - npm
+
+  forgejo-runner:
+    image: data.forgejo.org/forgejo/runner:13
+    container_name: general-forgejo-runner
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    # Starts idle for safe, manual registration against a running Forgejo
+    # instance. Replace with `forgejo-runner daemon --config /data/config.yml`
+    # after registration and config/label agreement are verified.
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["sleep infinity"]
+    volumes:
+      - forgejo-runner-data:/data
+      - ./forgejo-runner-config.yml:/data/config.yml:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - forgejo
+
+networks:
+  forgejo:
+    name: forgejo
+    internal: true
+  npm:
+    name: npm
+    external: true
+
+volumes:
+  forgejo-data:
+  forgejo-postgres-data:
+  forgejo-db-dumps:
+  forgejo-runner-data:

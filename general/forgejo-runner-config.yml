@@ -1,0 +1,30 @@
+# Forgejo runner baseline. Keep labels identical to those supplied during
+# runner registration; mismatches leave workflows queued indefinitely.
+runner:
+  file: .runner
+  capacity: 1
+  timeout: 3h
+  shutdown_timeout: 0s
+  labels:
+    - docker:docker://node:22-bookworm
+    - self-hosted:docker://node:22-bookworm
+
+container:
+  docker_host: automount
+  privileged: false
+  options:
+  valid_volumes: []
+  network: ""
+  enable_ipv6: false
+
+cache:
+  enabled: true
+  dir: /data/.cache
+  host: ""
+  port: 0
+
+host:
+  workdir_parent:
+
+log:
+  level: info

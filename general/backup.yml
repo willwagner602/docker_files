@@ -34,8 +34,11 @@ services:
       # /mnt/halfToshibaB/docker/data/mindwtr was dropped 2026-10 with the
       # decommissioned Mindwtr Cloud service; the on-host directory is slated
       # for deletion. Deliberate removal — do not re-add.
-      # Named volumes to back up (logical compose names).
-      - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys woodpecker-agent-conf
+      # Named volumes to back up (logical compose names). PostgreSQL is covered
+      # by the daily pg_dumpall export in forgejo-db-dumps, not its live data volume.
+      - BACKUP_VOLUMES=mosquitto-data mosquitto-logs mosquitto-conf otr-config otr-store tailscale-state etc_wireguard zwave-config komodo-mongo-data komodo-mongo-config komodo-keys woodpecker-agent-conf forgejo-data forgejo-db-dumps forgejo-runner-data
+      # PostgreSQL data directories are not safely copied while the server is live.
+      - EXCLUDED_VOLUMES=forgejo-postgres-data
       # Service mounts deliberately NOT backed up, with the reason:
       #   /proc — host process table mounted for the Komodo agent.
       #   /etc/komodo — Periphery root dir for Komodo-managed stacks; empty
@@ -105,3 +108,6 @@ services:
       - komodo-mongo-data:/volume-roots/komodo-mongo-data:ro
       - komodo-mongo-config:/volume-roots/komodo-mongo-config:ro
       - komodo-keys:/volume-roots/komodo-keys:ro
+      - forgejo-data:/volume-roots/forgejo-data:ro
+      - forgejo-db-dumps:/volume-roots/forgejo-db-dumps:ro
+      - forgejo-runner-data:/volume-roots/forgejo-runner-data:ro
