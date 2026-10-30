@@ -1,0 +1,47 @@
+# Jellyfin media server sharing the existing Plex libraries.
+#
+# READ-ONLY EVALUATION MODE: the media mounts below carry `:ro`, so no
+# Jellyfin feature can modify the library files Plex manages. Jellyfin still
+# writes everything it needs (watch states, metadata database, downloaded
+# artwork, transcoding temp files) into its own /config volume.
+#
+# Read/write migration (when Jellyfin should own sidecars or subtitle files):
+#   1. Back up /config (media/backup.yml already covers it) — a first launch
+#      against writable media can not be undone by deleting the container.
+#   2. Remove the `:ro` suffix from the two /data mounts below.
+#   3. Recreate the container: `docker compose up -d jellyfin` (from media/).
+#   4. In Jellyfin's dashboard, review the library settings that write next
+#      to the media (save metadata/artwork into media folders, trickplay
+#      images, subtitle downloading) — they are the first writers once the
+#      mounts are writable. No other compose changes are required.
+#
+# Ports: 8096 HTTP, 8920 HTTPS, 7359/udp client auto-discovery. Plex already
+# binds host 1900/udp for its own discovery, so Jellyfin's DLNA port
+# (1900/udp) is deliberately NOT published; if DLNA is ever enabled, use a
+# free host port, e.g. `1901:1900/udp`.
+services:
+  jellyfin:
+    image: linuxserver/jellyfin:12.4ubu2604-ls57@sha256:3894d9eae88418d3cf9ac6349392d2c4dad818365a59565d19edc38098897044
+    container_name: jellyfin
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8096/health >/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    ports:
+      - 8096:8096/tcp
+      - 8920:8920/tcp
+      - 7359:7359/udp
+    environment:
+      - PUID=1001
+      - PGID=1001
+      - TZ=America/Los_Angeles
+    volumes:
+      - /bigdisk/plex/jellyfin:/config
+      # Same host directories Plex mounts at /tv and /movies (plex.yml); the
+      # :ro suffix is the read-only-mode guarantee. See the migration notes
+      # in the file header before removing it.
+      - /bigdisk/plex/tv:/data/tvshows:ro
+      - /bigdisk/plex/movies:/data/movies:ro

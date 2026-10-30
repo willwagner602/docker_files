@@ -379,6 +379,7 @@ while :; do
     check_sab
     check_http "Ombi" "http://ombi:3579/ombi/"
     check_http "Plex" "http://plex:32400/identity"
+    check_http "Jellyfin" "http://jellyfin:8096/health"
     check_http "Sonarr" "http://sonarr:8989/ping"
     check_http "Radarr" "http://radarr:7878/ping"
     check_http "Prowlarr" "http://prowlarr:9696/ping"

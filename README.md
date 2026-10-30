@@ -10,6 +10,7 @@ Docker Compose definitions for the services running on the home & media servers.
 | --- | --- | --- |
 | `arr.yml` | Sonarr, Radarr, Whisparr, Stash, Unpackerr | Unpackerr connects to Sonarr and Radarr using their Compose service names. Stash manages the separate Whisparr library. |
 | `plex.yml` | Plex | Independent media server. |
+| `jellyfin.yml` | Jellyfin | Independent media server sharing Plex's libraries read-only (`:ro` media mounts; see the file header for the read/write migration steps). |
 | `ombi.yml` | Ombi | Independent request-management service. |
 | `prowlarr.yml` | Prowlarr | Independent indexer manager. |
 | `flaresolverr.yml` | FlareSolverr | Independent proxy/solver service. |
