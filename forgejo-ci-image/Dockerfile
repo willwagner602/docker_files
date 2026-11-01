@@ -12,7 +12,7 @@ FROM golang:1.26-bookworm
 
 ARG NODE_MAJOR=22
 ARG DOCKER_VERSION=28.5.2
-ARG COMPOSE_VERSION=v2.39.4
+ARG COMPOSE_VERSION=v5.6.1
 ARG BUILDX_VERSION=v0.30.0
 
 # Node.js LTS from NodeSource; git and curl already ship with the golang image.
@@ -21,13 +21,16 @@ RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
     && rm -rf /var/lib/apt/lists/*
 
 # docker CLI client and CLI plugins (compose, buildx).
+# download.docker.com uses uname-style arches (x86_64); the GitHub release
+# assets for compose/buildx use dpkg-style arches (amd64).
 RUN set -eu \
-    && arch="$(dpkg --print-architecture)" \
-    && curl -fsSL "https://download.docker.com/linux/static/stable/${arch}/docker-${DOCKER_VERSION}.tgz" \
+    && uarch="$(uname -m)" \
+    && darch="$(dpkg --print-architecture)" \
+    && curl -fsSL "https://download.docker.com/linux/static/stable/${uarch}/docker-${DOCKER_VERSION}.tgz" \
     | tar -xz -C /usr/local/bin --strip-components=1 docker/docker \
     && mkdir -p /usr/local/lib/docker/cli-plugins \
-    && curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${arch}" \
+    && curl -fsSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-linux-${uarch}" \
     -o /usr/local/lib/docker/cli-plugins/docker-compose \
-    && curl -fsSL "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-${arch}" \
+    && curl -fsSL "https://github.com/docker/buildx/releases/download/${BUILDX_VERSION}/buildx-${BUILDX_VERSION}.linux-${darch}" \
     -o /usr/local/lib/docker/cli-plugins/docker-buildx \
     && chmod +x /usr/local/lib/docker/cli-plugins/* /usr/local/bin/docker
