@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. Shell logic tests for scripts/health-notify.sh and scripts/backup.sh,
+  #    plus per-stack backup coverage (every deployed container's state must be
+  #    covered by the stack's backup service).
+  #
+  # The suites run the real scripts' functions against stubs / scratch dirs /
+  # resolved compose config, so they need no Docker daemon, no network, and no
+  # secrets (compose config runs client-side).
+  # ---------------------------------------------------------------------------
+  shell-tests:
+    name: shell tests (health-notify.sh, backup)
+    runs-on: docker
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v4
+
+      - name: Run health-notify.sh test suite
+        run: sh scripts/tests/health-notify/tests.sh
+
+      - name: Run backup test suite (retention + coverage)
+        run: sh scripts/tests/backup/tests.sh
+
+  # ---------------------------------------------------------------------------
+  # 2. Compose validation for every stack.
+  #
+  # `docker compose config` is a strict interpolation + structure check: it
+  # fails on a missing required `${VAR:?...}` variable, a broken `include:`
+  # path, or a malformed file. The required variables are supplied below so a
+  # fresh checkout (which has no untracked .env) can be validated.
+  #
+  # These are throwaway placeholder values used only for interpolation; nothing
+  # is started or pulled. If you add a new required `${VAR:?...}` to any
+  # stack, add it here too and CI will stay green.
+  # ---------------------------------------------------------------------------
+  compose-validate:
+    name: compose validation (${{ matrix.stack }})
+    runs-on: docker
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [general, media, desktop]
+    steps:
+      - uses: https://data.forgejo.org/actions/checkout@v4
+
+      - name: Validate ${{ matrix.stack }} stack
+        working-directory: ${{ matrix.stack }}
+        env:
+          # --- general stack ---
+          TELEGRAM_BOT_TOKEN: ci-placeholder
+          TELEGRAM_CHAT_ID: ci-placeholder
+          COUCHDB_USER: ci-placeholder
+          COUCHDB_PASSWORD: ci-placeholder
+          KOMODO_DATABASE_USERNAME: ci-placeholder
+          KOMODO_DATABASE_PASSWORD: ci-placeholder
+          KOMODO_INIT_ADMIN_PASSWORD: ci-placeholder
+          KOMODO_JWT_SECRET: ci-placeholder
+          KOMODO_WEBHOOK_SECRET: ci-placeholder
+          # --- media stack (immich) ---
+          IMMICH_VERSION: ci-placeholder
+          IMMICH_DB_PASSWORD: ci-placeholder
+          # --- media stack (photo-uploader) ---
+          PHOTO_UPLOADER_OPERATOR_USERNAME: ci-placeholder
+          PHOTO_UPLOADER_OPERATOR_PASSWORD: ci-placeholder
+          PHOTO_UPLOADER_SESSION_SECRET: ci-placeholder
+          PHOTO_UPLOADER_BSKY_HANDLE: ci-placeholder
+          PHOTO_UPLOADER_BSKY_APP_PASSWORD: ci-placeholder
+          PHOTO_UPLOADER_PHOTO_PATH: /ci-placeholder/photos
+          # --- media stack (plex) ---
+          PLEX_CLAIM: ci-placeholder
+          # --- media stack (postgres / download clients) ---
+          POSTGRES_PASSWORD: ci-placeholder
+          PIA_USER: ci-placeholder
+          PIA_PASS: ci-placeholder
+          # --- desktop stack (komodo-mcp) ---
+          KOMODO_URL: ci-placeholder
+          KOMODO_API_KEY: ci-placeholder
+          KOMODO_API_SECRET: ci-placeholder
+        run: |
+          set -eu
+          # The example env files are the de facto source of truth for required
+          # variables (see stacks/*/.env.example); the env: block above covers
+          # only a subset (CI's own minimum). If you add a new required
+          # ${VAR:?...} to any stack, add it to that stack's .env.example —
+          # CI and `make validate`/`make test` all seed from the example files.
+          if [ -f .env.example ]; then
+            cp .env.example .env
+            echo "seeded .env from .env.example"
+          fi
+          # Some services use additional file unions of the same pattern
+          # (e.g. woodpecker.env, unpoller.env); seed those from their
+          # .example files too.
+          for ex in *.example; do
+            [ -f "$ex" ] || continue
+            cp "$ex" "${ex%.example}"
+          done
+          docker compose version
+          docker compose config -q
+          echo "OK: ${{ matrix.stack }} validates"
