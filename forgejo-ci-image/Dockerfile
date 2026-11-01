@@ -19,7 +19,7 @@ ARG BUILDX_VERSION=v0.30.0
 # jq + python3 + sqlite3: required by scripts/health-notify.sh and the backup
 # test suites (CI runs them inside the job container).
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs jq python3 sqlite3 \
+    && apt-get install -y --no-install-recommends nodejs jq python3 sqlite3 zip unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # docker CLI client and CLI plugins (compose, buildx).
