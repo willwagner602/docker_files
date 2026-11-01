@@ -16,8 +16,10 @@ ARG COMPOSE_VERSION=v5.6.1
 ARG BUILDX_VERSION=v0.30.0
 
 # Node.js LTS from NodeSource; git and curl already ship with the golang image.
+# jq + python3 + sqlite3: required by scripts/health-notify.sh and the backup
+# test suites (CI runs them inside the job container).
 RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get install -y --no-install-recommends nodejs jq python3 sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 # docker CLI client and CLI plugins (compose, buildx).
