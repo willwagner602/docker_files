@@ -106,6 +106,7 @@ services:
       - forgejo-data:/data
     networks:
       - forgejo
+      - forgejo-ci
       - npm
 
   forgejo-runner:
@@ -114,22 +115,31 @@ services:
     restart: unless-stopped
     init: true
     user: "1000:1000"
-    # Starts idle for safe, manual registration against a running Forgejo
-    # instance. Replace with `forgejo-runner daemon --config /data/config.yml`
-    # after registration and config/label agreement are verified.
-    entrypoint: ["/bin/sh", "-c"]
-    command: ["sleep infinity"]
+    # Host docker socket is root:docker (gid 999); runner needs that supplementary
+    # group to talk to it.
+    group_add: ["999"]
+    command: ["forgejo-runner", "daemon", "--config", "/data/config.yml"]
     volumes:
       - forgejo-runner-data:/data
       - ./forgejo-runner-config.yml:/data/config.yml:ro
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - forgejo
+      # The forgejo network is internal (no egress); the runner daemon clones
+      # remote actions (data.forgejo.org), so it needs a route out.
+      - forgejo-egress
 
 networks:
   forgejo:
     name: forgejo
     internal: true
+  forgejo-egress:
+    name: forgejo-egress
+  # Bridge with internet egress that job containers run on; forgejo is
+  # attached so jobs can git-clone over http://forgejo:3000 while still
+  # reaching package registries and other endpoints.
+  forgejo-ci:
+    name: forgejo-ci
   npm:
     name: npm
     external: true

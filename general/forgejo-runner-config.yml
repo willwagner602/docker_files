@@ -6,15 +6,17 @@ runner:
   timeout: 3h
   shutdown_timeout: 0s
   labels:
-    - docker:docker://node:22-bookworm
-    - self-hosted:docker://node:22-bookworm
+    - docker:docker://forgejo-ci-base:latest
+    - self-hosted:docker://forgejo-ci-base:latest
 
 container:
   docker_host: automount
   privileged: false
   options:
   valid_volumes: []
-  network: ""
+  # Jobs join this bridge (forgejo attached + internet egress) so the
+  # http://forgejo:3000 clone URL resolves and package fetches work.
+  network: forgejo-ci
   enable_ipv6: false
 
 cache:
@@ -28,3 +30,10 @@ host:
 
 log:
   level: info
+
+server:
+  connections:
+    forgejo:
+      url: http://forgejo:3000
+      uuid: 36623063-3865-3464-6631-333934646339
+      token_url: file:/data/token
