@@ -8,6 +8,9 @@ runner:
   labels:
     - docker:docker://forgejo-ci-base:latest
     - self-hosted:docker://forgejo-ci-base:latest
+    # GitHub-style workflows (runs-on: ubuntu-latest) map to the same base
+    # image, so mirrored repos queue instead of stalling.
+    - ubuntu-latest:docker://forgejo-ci-base:latest
 
 container:
   docker_host: automount
