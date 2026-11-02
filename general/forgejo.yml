@@ -9,7 +9,7 @@
 # unless public SSH access is explicitly desired.
 services:
   forgejo-db:
-    image: postgres:17-alpine
+    image: "postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b"
     container_name: general-forgejo-db
     restart: unless-stopped
     logging:
@@ -34,7 +34,7 @@ services:
       start_period: 20s
 
   forgejo-db-dump:
-    image: postgres:17-alpine
+    image: "postgres:17-alpine@sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b"
     container_name: general-forgejo-db-dump
     restart: unless-stopped
     logging:
@@ -66,7 +66,7 @@ services:
       rm -f /dumps/forgejo-all.sql.part; sleep 300; fi; done'
 
   forgejo:
-    image: codeberg.org/forgejo/forgejo:17
+    image: "codeberg.org/forgejo/forgejo:17@sha256:fcd19ff4ebc85fb098a67e8e1d0d5a84d07dd6e8a23edcfdfd5b71a6178953be"
     container_name: forgejo
     restart: unless-stopped
     logging:
@@ -108,26 +108,100 @@ services:
       - forgejo
       - forgejo-ci
       - npm
+    # Autoheal restarts the container if the health check fails; the
+    # forgejo-autoheal sidecar watches containers carrying this label.
+    labels:
+      autoheal: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/healthz || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
 
   forgejo-runner:
-    image: data.forgejo.org/forgejo/runner:13
+    image: "data.forgejo.org/forgejo/runner:13@sha256:568cea8c15ddc01fc8f330124892f572af7db37fa28344a2c1914405793bf61d"
     container_name: general-forgejo-runner
     restart: unless-stopped
     init: true
     user: "1000:1000"
-    # Host docker socket is root:docker (gid 999); runner needs that supplementary
-    # group to talk to it.
-    group_add: ["999"]
     command: ["forgejo-runner", "daemon", "--config", "/data/config.yml"]
     volumes:
       - forgejo-runner-data:/data
       - ./forgejo-runner-config.yml:/data/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - forgejo
       # The forgejo network is internal (no egress); the runner daemon clones
       # remote actions (data.forgejo.org), so it needs a route out.
       - forgejo-egress
+
+  # Filtered Docker API for the runner daemon and CI job containers. Replaces
+  # the raw host socket the runner used to automount into every job: jobs now
+  # get DOCKER_HOST pointing at this proxy instead of an unrestricted socket.
+  # The allowlist covers what the runner (container/exec lifecycle) and image
+  # build/push workflows need; swarm, secrets, configs, plugins and system
+  # endpoints stay denied. NOTE: POST=1 gates all mutating methods, so a job
+  # could still create containers with bind mounts — this is a filter, not a
+  # security boundary.
+  forgejo-docker-proxy:
+    image: "lscr.io/linuxserver/socket-proxy@sha256:69c389630d3e01222be5f782457a8c2e9b5e55638afad349a26ac027a2ecb2ff"
+    container_name: general-forgejo-docker-proxy
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - CONTAINERS=1
+      - EXEC=1
+      - IMAGES=1
+      - BUILD=1
+      - SESSION=1
+      - NETWORKS=1
+      - VOLUMES=1
+      - INFO=1
+      - AUTH=1
+      - POST=1
+      - EVENTS=0
+      - SECRETS=0
+      - CONFIGS=0
+      - PLUGINS=0
+      - NODES=0
+      - SERVICES=0
+      - SWARM=0
+      - TASKS=0
+      - SYSTEM=0
+      - COMMIT=0
+      - ALLOW_RESTARTS=0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Same entrypoint/setuid caveat as the health-notify socket proxy: no
+    # no-new-privileges here or the proxy crash-loops.
+    cap_drop:
+      - ALL
+    networks:
+      - forgejo-egress
+      - forgejo-ci
+
+  # Restarts the forgejo container when its health check fails (Docker marks
+  # unhealthy but never restarts on its own).
+  forgejo-autoheal:
+    image: "willfarrell/autoheal@sha256:441b0264c5a57ab5f1bd9467cb8c155cd8ddac249d338a9ad4132d059e7d0877"
+    container_name: general-forgejo-autoheal
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    environment:
+      - AUTOHEAL_CONTAINER_LABEL=autoheal
+      - AUTOHEAL_INTERVAL=60
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # Only talks to the Docker socket; no network needed.
+    network_mode: none
 
 networks:
   forgejo:

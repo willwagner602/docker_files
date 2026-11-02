@@ -298,6 +298,43 @@ check_http() {
   fi
 }
 
+check_forgejo_ci() {
+  # Forgejo CI stall detection. Self-disabling unless enabled via
+  # FORGEJO_CI_STALL_MINUTES in the environment (set on the general host).
+  # Reads the Docker API through the existing read-only socket proxy: any
+  # FORGEJO-ACTIONS-TASK-* job container running longer than the threshold
+  # means a job (or the runner's setup phase) is wedged, which Forgejo
+  # itself never surfaces.
+  [ -n "${FORGEJO_CI_STALL_MINUTES:-}" ] || return 0
+  api=${DOCKER_HOST#tcp://}
+  [ -n "$api" ] || return 0
+  listing=$(curl -fsS --max-time 10 \
+    "http://${api}/containers/json?filters=%7B%22name%22%3A%5B%22FORGEJO-ACTIONS-TASK%22%5D%7D" 2>/dev/null) || return 0
+  running_names=$(printf '%s' "$listing" | jq -r '.[] | select(.State == "running") | .Names[0]' | sed 's|^/||' 2>/dev/null) || return 0
+  now=$(date +%s)
+  printf '%s\n' "$running_names" | while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    created=$(printf '%s' "$listing" | jq -r --arg n "/$name" '.[] | select(.Names[0] == $n) | .Created' | head -n 1)
+    [ -n "$created" ] || continue
+    age=$(((now - created) / 60))
+    key=$(safe_name "$name")
+    if [ "$age" -ge "$FORGEJO_CI_STALL_MINUTES" ] && [ -z "$(read_state "forgejoci.$key.alerted")" ]; then
+      send "⚠️ Forgejo CI job container $name has been running for ${age}m (stall threshold ${FORGEJO_CI_STALL_MINUTES}m)."
+      write_state "forgejoci.$key.alerted" "$age"
+    fi
+  done
+  # Clear the alert once a stalled container is gone so a future stall re-alerts.
+  for f in "$STATE_DIR"/forgejoci.*.alerted; do
+    [ -f "$f" ] || continue
+    key=${f#"$STATE_DIR/forgejoci."}
+    key=${key%.alerted}
+    if ! printf '%s\n' "$running_names" | grep -qx "$key"; then
+      send "✅ Forgejo CI job container $key is no longer running (stall alert cleared)."
+      rm -f "$f"
+    fi
+  done
+}
+
 check_certificate_host() {
   host=$1
   key=$(safe_name "$host")
@@ -391,5 +428,6 @@ while :; do
     check_http "ImmichML" "http://immich-machine-learning:3003/ping"
   fi
   check_certificates
+  check_forgejo_ci
   sleep "$POLL_INTERVAL"
 done
