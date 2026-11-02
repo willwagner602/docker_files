@@ -67,6 +67,7 @@ services:
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:?Set TELEGRAM_CHAT_ID in .env}
       - STATE_DIR=/state
       - POLL_INTERVAL=60
+      - FORGEJO_CI_STALL_MINUTES=45
       - CERT_CONFIG_DIR=/npm-proxy-hosts
       - CERT_WARN_DAYS=30
     volumes:

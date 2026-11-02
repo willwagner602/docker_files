@@ -13,7 +13,11 @@ runner:
     - ubuntu-latest:docker://forgejo-ci-base:latest
 
 container:
-  docker_host: automount
+  # Runner and jobs go through the filtered Docker API proxy instead of the
+  # raw host socket; see forgejo-docker-proxy in forgejo.yml. act_runner
+  # exports this as DOCKER_HOST inside job containers, so image build/push
+  # workflows keep working without a socket mount.
+  docker_host: tcp://forgejo-docker-proxy:2375
   privileged: false
   options:
   valid_volumes: []
