@@ -61,6 +61,7 @@ services:
       - "127.0.0.1:3001:3000" # admin surface; not reachable off-host
     networks:
       - unifi-mon
+      - npm
     restart: unless-stopped
     logging:
       driver: json-file
@@ -70,3 +71,6 @@ services:
 
 networks:
   unifi-mon:
+  npm:
+    name: npm
+    external: true
