@@ -6,11 +6,9 @@ runner:
   timeout: 3h
   shutdown_timeout: 0s
   labels:
-    - docker:docker://forgejo-ci-base:latest
-    - self-hosted:docker://forgejo-ci-base:latest
-    # GitHub-style workflows (runs-on: ubuntu-latest) map to the same base
-    # image, so mirrored repos queue instead of stalling.
-    - ubuntu-latest:docker://forgejo-ci-base:latest
+    - docker:docker://forgejo.willwagner.me/wbw602/forgejo-ci-base:latest
+    - self-hosted:docker://forgejo.willwagner.me/wbw602/forgejo-ci-base:latest
+    - ubuntu-latest:docker://forgejo.willwagner.me/wbw602/forgejo-ci-base:latest
 
 container:
   # Runner and jobs go through the filtered Docker API proxy instead of the
@@ -18,6 +16,7 @@ container:
   # exports this as DOCKER_HOST inside job containers, so image build/push
   # workflows keep working without a socket mount.
   docker_host: tcp://forgejo-docker-proxy:2375
+  force_pull: true
   privileged: false
   options:
   valid_volumes: []
